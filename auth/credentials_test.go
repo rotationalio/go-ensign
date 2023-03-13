@@ -1,4 +1,4 @@
-package credentials_test
+package auth_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
-	"github.com/rotationalio/go-ensign/credentials"
+	"github.com/rotationalio/go-ensign/auth"
 	"github.com/rotationalio/go-ensign/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -61,7 +61,7 @@ func TestInsecureCredentials(t *testing.T) {
 		return &api.TopicsPage{}, nil
 	}
 
-	client, err := mock.Client(context.Background(), credentials.WithPerRPCToken(dialerToken, true), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	client, err := mock.Client(context.Background(), auth.WithPerRPCToken(dialerToken, true), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err, "could not create mock client to connect to server with")
 
 	// Should be able to connect with the dialeraccess token
@@ -70,7 +70,7 @@ func TestInsecureCredentials(t *testing.T) {
 	require.Equal(t, dialerToken, actualToken)
 
 	// Should be able to make per-call requests
-	_, err = client.ListTopics(context.Background(), &api.PageInfo{}, credentials.PerRPCToken(callToken, true))
+	_, err = client.ListTopics(context.Background(), &api.PageInfo{}, auth.PerRPCToken(callToken, true))
 	require.NoError(t, err, "could not list topics")
 	require.Equal(t, callToken, actualToken)
 }
