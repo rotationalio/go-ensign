@@ -1,0 +1,78 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+      - "v*"
+    tags:
+      - "v*"
+  pull_request:
+
+jobs:
+  lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Install Staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@v0.3.3
+
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Lint Go Code
+        run: staticcheck ./...
+
+  test:
+    name: Go Test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        go-version: [1.19.x, 1.20.x]
+    env:
+      GOPATH: ${{ github.workspace }}/go
+      GOBIN: ${{ github.workspace }}/go/bin
+    defaults:
+      run:
+        working-directory: ${{ env.GOPATH }}/src/github.com/rotationalio/go-ensign
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Speedup
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/rotationalio/go-ensign
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: "3.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Dependencies
+        run: |
+          go version
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0
+
+      - name: Code Generation
+        run: go generate ./...
+
+      - name: Run Unit Tests
+        run: go test -v -coverprofile=coverage.txt -covermode=atomic --race ./...
