@@ -27,16 +27,18 @@ protoc -I ${PROTOS} \
     --go_opt=Mmimetype/v1beta1/mimetype.proto="github.com/rotationalio/go-ensign/mimetype/v1beta1;mimetype" \
     mimetype/v1beta1/mimetype.proto
 
-# protoc -I ${PROTOS} \
-#     --go_out="${GOPATH}/src" --go-grpc_out="${GOPATH}/src" \
-#     --go_opt=module="github.com/rotationalio/go-ensign" \
-#     --go_opt=Mmimetype/v1beta1/mimetype.proto="github.com/rotationalio/go-ensign/mimetype/v1beta1;mimetype" \
-#     --go_opt=Mapi/v1beta1/ensign.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-#     --go_opt=Mapi/v1beta1/event.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-#     --go_opt=Mapi/v1beta1/topic.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-#     --go-grpc_opt=Mapi/v1beta1/ensign.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-#     --go-grpc_opt=Mapi/v1beta1/event.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-#     --go-grpc_opt=Mapi/v1beta1/topic.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-#     api/v1beta1/ensign.proto \
-#     api/v1beta1/event.proto \
-#     api/v1beta1/topic.proto
+protoc -I ${PROTOS} \
+    --go_out=. --go-grpc_out=. \
+    --go_opt=module="github.com/rotationalio/go-ensign" \
+    --go_opt=Mmimetype/v1beta1/mimetype.proto="github.com/rotationalio/go-ensign/mimetype/v1beta1;mimetype" \
+    --go_opt=Mapi/v1beta1/ensign.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
+    --go_opt=Mapi/v1beta1/event.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
+    --go_opt=Mapi/v1beta1/topic.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
+    --go-grpc_opt=module="github.com/rotationalio/go-ensign" \
+    --go-grpc_opt=Mmimetype/v1beta1/mimetype.proto="github.com/rotationalio/go-ensign/mimetype/v1beta1;mimetype" \
+    --go-grpc_opt=Mapi/v1beta1/ensign.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
+    --go-grpc_opt=Mapi/v1beta1/event.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
+    --go-grpc_opt=Mapi/v1beta1/topic.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
+    api/v1beta1/ensign.proto \
+    api/v1beta1/event.proto \
+    api/v1beta1/topic.proto
