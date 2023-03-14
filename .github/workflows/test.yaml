@@ -59,6 +59,13 @@ jobs:
         with:
           path: ${{ env.GOPATH }}/src/github.com/rotationalio/go-ensign
 
+      - name: Clone Ensign Repository
+        uses: actions/checkout@v3
+        with:
+          repository: rotationalio/ensign
+          ref: main
+          path: ${{ env.GOPATH }}/src/github.com/rotationalio/ensign
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
