@@ -1,6 +1,7 @@
 package sdk_test
 
 import (
+	"os"
 	"testing"
 
 	sdk "github.com/rotationalio/go-ensign"
@@ -8,6 +9,7 @@ import (
 )
 
 func TestNilWilNilOpts(t *testing.T) {
+	os.Setenv("ENSIGN_NO_AUTHENTICATION", "true")
 	_, err := sdk.New(nil)
 	require.NoError(t, err, "could not pass nil into ensign")
 }
@@ -18,10 +20,6 @@ func TestOptions(t *testing.T) {
 		ClientID:     "client-id",
 		ClientSecret: "client-secret",
 	}
-
-	// Test Endpoint is required
-	opts.Endpoint = ""
-	require.EqualError(t, opts.Validate(), sdk.ErrMissingEndpoint.Error(), "opts should be invalid with missing endpoint")
 
 	// Test ClientID is required
 	opts.Endpoint = "localhost:443"

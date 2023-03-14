@@ -5,8 +5,8 @@ import (
 	"crypto/tls"
 	"io"
 
-	"github.com/kelseyhightower/envconfig"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
+	"github.com/rotationalio/go-ensign/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -19,30 +19,7 @@ type Client struct {
 	opts *Options
 	cc   *grpc.ClientConn
 	api  api.EnsignClient
-}
-
-// Options allows users to configure their connection to ensign.
-type Options struct {
-	Endpoint     string `default:"flagship.rotational.dev:443"`
-	ClientID     string `split_words:"true"`
-	ClientSecret string `split_words:"true"`
-	Insecure     bool   `default:"false"`
-}
-
-func (o Options) Validate() (err error) {
-	if o.Endpoint == "" {
-		return ErrMissingEndpoint
-	}
-
-	if o.ClientID == "" {
-		return ErrMissingClientID
-	}
-
-	if o.ClientSecret == "" {
-		return ErrMissingClientSecret
-	}
-
-	return nil
+	auth *auth.Client
 }
 
 // Publisher is a low level interface for sending events to a topic or a group of topics
@@ -63,15 +40,19 @@ type Subscriber interface {
 
 func New(opts *Options) (client *Client, err error) {
 	if opts == nil {
-		opts = &Options{}
-		if err = envconfig.Process("ensign", opts); err != nil {
-			return nil, err
-		}
+		opts = NewOptions()
 	}
 
-	// TODO: Validate options
+	if err = opts.Validate(); err != nil {
+		return nil, err
+	}
 
 	client = &Client{opts: opts}
+
+	if client.auth, err = auth.New(opts.AuthURL, opts.Insecure); err != nil {
+		return nil, err
+	}
+
 	if err = client.Connect(); err != nil {
 		return nil, err
 	}
@@ -80,12 +61,21 @@ func New(opts *Options) (client *Client, err error) {
 
 func (c *Client) Connect(opts ...grpc.DialOption) (err error) {
 	if len(opts) == 0 {
-		opts = make([]grpc.DialOption, 0, 1)
+		opts = make([]grpc.DialOption, 0, 2)
 		if c.opts.Insecure {
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		} else {
 			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 		}
+	}
+
+	if !c.opts.NoAuthentication {
+		var creds credentials.PerRPCCredentials
+		if creds, err = c.auth.Login(context.Background(), c.opts.ClientID, c.opts.ClientSecret); err != nil {
+			return err
+		}
+
+		opts = append(opts, grpc.WithPerRPCCredentials(creds))
 	}
 
 	if c.cc, err = grpc.Dial(c.opts.Endpoint, opts...); err != nil {
