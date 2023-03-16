@@ -20,25 +20,32 @@ if [[ ! -d $PROTOS ]]; then
     exit 0
 fi
 
+MODULE="github.com/rotationalio/go-ensign"
+APIMOD="github.com/rotationalio/go-ensign/api/v1beta1;api"
+MMEMOD="github.com/rotationalio/go-ensign/mimetype/v1beta1;mimetype"
+
 # Generate the protocol buffers
 protoc -I ${PROTOS} \
     --go_out=. \
-    --go_opt=module="github.com/rotationalio/go-ensign" \
-    --go_opt=Mmimetype/v1beta1/mimetype.proto="github.com/rotationalio/go-ensign/mimetype/v1beta1;mimetype" \
+    --go_opt=module="${MODULE}" \
+    --go_opt=Mmimetype/v1beta1/mimetype.proto="${MMEMOD}" \
     mimetype/v1beta1/mimetype.proto
 
 protoc -I ${PROTOS} \
     --go_out=. --go-grpc_out=. \
-    --go_opt=module="github.com/rotationalio/go-ensign" \
-    --go_opt=Mmimetype/v1beta1/mimetype.proto="github.com/rotationalio/go-ensign/mimetype/v1beta1;mimetype" \
-    --go_opt=Mapi/v1beta1/ensign.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-    --go_opt=Mapi/v1beta1/event.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-    --go_opt=Mapi/v1beta1/topic.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-    --go-grpc_opt=module="github.com/rotationalio/go-ensign" \
-    --go-grpc_opt=Mmimetype/v1beta1/mimetype.proto="github.com/rotationalio/go-ensign/mimetype/v1beta1;mimetype" \
-    --go-grpc_opt=Mapi/v1beta1/ensign.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-    --go-grpc_opt=Mapi/v1beta1/event.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
-    --go-grpc_opt=Mapi/v1beta1/topic.proto="github.com/rotationalio/go-ensign/api/v1beta1;api" \
+    --go_opt=module="${MODULE}" \
+    --go_opt=Mmimetype/v1beta1/mimetype.proto="${MMEMOD}" \
+    --go_opt=Mapi/v1beta1/ensign.proto="${APIMOD}" \
+    --go_opt=Mapi/v1beta1/event.proto="${APIMOD}" \
+    --go_opt=Mapi/v1beta1/topic.proto="${APIMOD}" \
+    --go_opt=Mapi/v1beta1/groups.proto="${APIMOD}" \
+    --go-grpc_opt=module="${MODULE}" \
+    --go-grpc_opt=Mmimetype/v1beta1/mimetype.proto="${MMEMOD}" \
+    --go-grpc_opt=Mapi/v1beta1/ensign.proto="${APIMOD}" \
+    --go-grpc_opt=Mapi/v1beta1/event.proto="${APIMOD}" \
+    --go-grpc_opt=Mapi/v1beta1/topic.proto="${APIMOD}" \
+    --go-grpc_opt=Mapi/v1beta1/groups.proto="${APIMOD}" \
     api/v1beta1/ensign.proto \
     api/v1beta1/event.proto \
-    api/v1beta1/topic.proto
+    api/v1beta1/topic.proto \
+    api/v1beta1/groups.proto
