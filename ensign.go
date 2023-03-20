@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"io"
 
+	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"github.com/rotationalio/go-ensign/auth"
 	"google.golang.org/grpc"
@@ -27,7 +28,7 @@ type Client struct {
 type Publisher interface {
 	io.Closer
 	Errorer
-	Publish(events ...*api.Event)
+	Publish(topic string, events ...*api.Event)
 }
 
 type Subscriber interface {
@@ -117,7 +118,7 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 	return pub, nil
 }
 
-func (c *Client) Subscribe(ctx context.Context) (_ Subscriber, err error) {
+func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber, err error) {
 	sub := &subscriber{
 		send: make(chan *api.Subscription, BufferSize),
 		recv: make([]chan<- *api.Event, 0, 1),
@@ -125,9 +126,23 @@ func (c *Client) Subscribe(ctx context.Context) (_ Subscriber, err error) {
 		errc: make(chan error, 1),
 	}
 
+	// Connect to the stream and send stream policy information
 	if sub.stream, err = c.api.Subscribe(ctx); err != nil {
 		return nil, err
 	}
+
+	// TODO: map topic names to IDs
+	// TODO: handle consumer groups here
+	open := &api.OpenStream{
+		ConsumerId: ulid.Make().String(),
+		Topics:     topics,
+	}
+
+	if err = sub.stream.Send(&api.Subscription{Embed: &api.Subscription_OpenStream{OpenStream: open}}); err != nil {
+		return nil, err
+	}
+
+	// TODO: perform a recv to ensure the stream has been successfully connected to
 
 	// Start go routines
 	sub.wg.Add(2)
