@@ -18,8 +18,10 @@ type publisher struct {
 
 var _ Publisher = &publisher{}
 
-func (c *publisher) Publish(events ...*api.Event) {
+func (c *publisher) Publish(topic string, events ...*api.Event) {
 	for _, e := range events {
+		// TODO: handle topic name mapping
+		e.TopicId = topic
 		c.send <- e
 	}
 }
