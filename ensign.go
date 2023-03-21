@@ -151,3 +151,11 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 
 	return sub, nil
 }
+
+func (c *Client) EnsignClient() api.EnsignClient {
+	return c.api
+}
+
+func (c *Client) QuarterdeckClient() *auth.Client {
+	return c.auth
+}
