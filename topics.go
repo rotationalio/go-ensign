@@ -45,7 +45,7 @@ func (c *Client) ListTopics(ctx context.Context) (topics []*api.Topic, err error
 
 	// Request all topics pages making each request in succession.
 	var page *api.TopicsPage
-	for page != nil && page.NextPageToken != "" {
+	for page == nil || page.NextPageToken != "" {
 		// If the context is done, stop requesting new pages
 		select {
 		case <-ctx.Done():
@@ -89,7 +89,7 @@ func (c *Client) TopicID(ctx context.Context, topicName string) (_ string, err e
 	var page *api.TopicNamesPage
 	query := &api.PageInfo{PageSize: uint32(100)}
 
-	for page != nil && query.NextPageToken != "" {
+	for page == nil || page.NextPageToken != "" {
 		if page, err = c.api.TopicNames(ctx, query); err != nil {
 			return "", err
 		}
