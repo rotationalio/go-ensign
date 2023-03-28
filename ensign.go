@@ -8,6 +8,7 @@ import (
 	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"github.com/rotationalio/go-ensign/auth"
+	"github.com/rotationalio/go-ensign/mock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -87,14 +88,23 @@ func (c *Client) Connect(opts ...grpc.DialOption) (err error) {
 	return nil
 }
 
+func (c *Client) ConnectMock(mock *mock.Ensign, opts ...grpc.DialOption) (err error) {
+	if c.api, err = mock.Client(context.Background(), opts...); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) Close() (err error) {
 	defer func() {
 		c.cc = nil
 		c.api = nil
 	}()
 
-	if err = c.cc.Close(); err != nil {
-		return err
+	if c.cc != nil {
+		if err = c.cc.Close(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
