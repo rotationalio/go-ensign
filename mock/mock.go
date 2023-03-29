@@ -108,7 +108,7 @@ func (s *Ensign) Shutdown() {
 // Reset the calls map and all associated handlers in preparation for a new test.
 func (s *Ensign) Reset() {
 	for key := range s.Calls {
-		s.Calls[key] = 0
+		delete(s.Calls, key)
 	}
 
 	s.OnPublish = nil
