@@ -72,12 +72,15 @@ func (c *Client) Connect(opts ...grpc.DialOption) (err error) {
 	}
 
 	if !c.opts.NoAuthentication {
-		var creds credentials.PerRPCCredentials
-		if creds, err = c.auth.Login(context.Background(), c.opts.ClientID, c.opts.ClientSecret); err != nil {
+		// Rather than using the PerRPC Dial Option add interceptors that ensure the
+		// access and refresh token are valid on every RPC call, reauthenticating with
+		// Quarterdeck as necessary. NOTE: must ensure that we login first!
+		if _, err = c.auth.Login(context.Background(), c.opts.ClientID, c.opts.ClientSecret); err != nil {
 			return err
 		}
 
-		opts = append(opts, grpc.WithPerRPCCredentials(creds))
+		opts = append(opts, grpc.WithUnaryInterceptor(c.auth.UnaryAuthenticate))
+		opts = append(opts, grpc.WithStreamInterceptor(c.auth.StreamAuthenticate))
 	}
 
 	if c.cc, err = grpc.Dial(c.opts.Endpoint, opts...); err != nil {
@@ -168,4 +171,12 @@ func (c *Client) EnsignClient() api.EnsignClient {
 
 func (c *Client) QuarterdeckClient() *auth.Client {
 	return c.auth
+}
+
+func (c *Client) UnaryInterceptor() grpc.UnaryClientInterceptor {
+	return nil
+}
+
+func (c *Client) StreamInterceptor() grpc.StreamClientInterceptor {
+	return nil
 }

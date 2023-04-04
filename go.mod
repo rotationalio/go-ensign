@@ -3,6 +3,8 @@ module github.com/rotationalio/go-ensign
 go 1.19
 
 require (
+	github.com/cenkalti/backoff/v4 v4.2.0
+	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/spaolacci/murmur3 v1.1.0

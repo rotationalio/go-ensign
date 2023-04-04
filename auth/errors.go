@@ -1,12 +1,15 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 )
 
 var (
-	unsuccessful = Reply{Success: false}
+	ErrIncompleteCreds = errors.New("both client id and secret are required")
+	ErrNoAPIKeys       = errors.New("no api keys available: must login the client first")
+	unsuccessful       = Reply{Success: false}
 )
 
 // StatusError decodes an error response from Quarterdeck.
@@ -20,10 +23,4 @@ func (e *StatusError) Error() string {
 		return fmt.Sprintf("[%d] %s", e.StatusCode, e.Reply.Error)
 	}
 	return fmt.Sprintf("[%d] %s", e.StatusCode, http.StatusText(e.StatusCode))
-}
-
-// Reply contains standard fields that are used for generic API responses and errors.
-type Reply struct {
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
 }
