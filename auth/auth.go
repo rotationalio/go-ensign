@@ -78,6 +78,11 @@ func New(authURL string, insecure bool) (client *Client, err error) {
 // request to Quarterdeck to fetch access and refresh tokens. Ensure that a context
 // with a deadline is specified in order to reduce how long the client attempts to login
 // for. Once logged in, the authentication client can hand out credentials on demand.
+// Credentials are returned from this method in case users want to add the credentials
+// as a DialOption; however this is only good for short duration process (e.g. processes
+// that will stop before the access token expires). Long running processes should use
+// the UnaryInterceptor and StreamInterceptor methods or call Credentials to get a
+// PerRPCCredentials CallOption to add to every RPC call.
 func (c *Client) Login(ctx context.Context, clientID, clientSecret string) (creds credentials.PerRPCCredentials, err error) {
 	// Require both clientID and clientSecret
 	if clientID == "" || clientSecret == "" {

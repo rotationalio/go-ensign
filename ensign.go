@@ -172,11 +172,3 @@ func (c *Client) EnsignClient() api.EnsignClient {
 func (c *Client) QuarterdeckClient() *auth.Client {
 	return c.auth
 }
-
-func (c *Client) UnaryInterceptor() grpc.UnaryClientInterceptor {
-	return nil
-}
-
-func (c *Client) StreamInterceptor() grpc.StreamClientInterceptor {
-	return nil
-}
