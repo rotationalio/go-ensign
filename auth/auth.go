@@ -293,6 +293,26 @@ func (c *Client) WaitForReady(ctx context.Context) (err error) {
 }
 
 //===========================================================================
+// Testing Methods
+//===========================================================================
+
+// Reset removes the apikeys and tokens from the client (used for testing).
+func (c *Client) Reset() {
+	c.apikey = nil
+	c.tokens = nil
+}
+
+// SetTokens allows the test suite to set the tokens on the client.
+func (c *Client) SetTokens(tokens *Tokens) {
+	c.tokens = tokens
+}
+
+// SetAPIKey allows the test suite to set the apikey on the client.
+func (c *Client) SetAPIKey(key *APIKey) {
+	c.apikey = key
+}
+
+//===========================================================================
 // Helper Methods
 //===========================================================================
 

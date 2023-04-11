@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/rotationalio/go-ensign/auth"
+	"github.com/rotationalio/go-ensign/auth/authtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,4 +31,24 @@ func TestBadTokens(t *testing.T) {
 	valid, err = tokens.RefreshValid()
 	require.Error(t, err, "expected error when refresh token is missing")
 	require.False(t, valid, "expected valid false when refresh token is missing")
+}
+
+func (s *authTestSuite) TestValidTokens() {
+	require := s.Require()
+
+	atks, rtks, err := s.srv.CreateTokenPair(&authtest.Claims{})
+	require.NoError(err, "could not create access and refresh token")
+
+	tokens := &auth.Tokens{
+		AccessToken:  atks,
+		RefreshToken: rtks,
+	}
+
+	valid, err := tokens.AccessValid()
+	require.NoError(err, "could not validate access token")
+	require.True(valid, "expected access token to be valid")
+
+	valid, err = tokens.RefreshValid()
+	require.NoError(err, "could not validate refresg token")
+	require.True(valid, "expected refresh token to be valid")
 }

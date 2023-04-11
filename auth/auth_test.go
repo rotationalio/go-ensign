@@ -33,6 +33,10 @@ func (s *authTestSuite) TearDownSuite() {
 	s.srv.Close()
 }
 
+func (s *authTestSuite) AfterTest(suiteName, testName string) {
+	s.auth.Reset()
+}
+
 func TestAuth(t *testing.T) {
 	suite.Run(t, &authTestSuite{})
 }
@@ -71,6 +75,73 @@ func (s *authTestSuite) TestLoginError() {
 	// Cannot login with incorrect credentials
 	_, err = s.auth.Login(ctx, "hacker", "password")
 	require.EqualError(err, "[401] invalid credentials")
+}
+
+func (s *authTestSuite) TestCredentials() {
+	require := s.Require()
+	ctx := context.Background()
+
+	// If tokens and apikeys are nil, an error should be returned
+	s.auth.Reset()
+	_, err := s.auth.Credentials(ctx)
+	require.ErrorIs(err, auth.ErrNoAPIKeys)
+
+	// If apikeys are set, then the tokens should be correctly authenticated
+	apikey := &auth.APIKey{}
+	apikey.ClientID, apikey.ClientSecret = s.srv.Register()
+	s.auth.SetAPIKey(apikey)
+
+	creds, err := s.auth.Credentials(ctx)
+	require.NoError(err, "could not authenticate to test server")
+
+	// Creds should be cached while they are still valid
+	other, err := s.auth.Credentials(ctx)
+	require.NoError(err, "could not authenticate to test server")
+	require.Equal(creds, other, "expected creds to be identical since they are cached")
+
+	// If the tokens are not valid an error should be returned
+	s.auth.SetTokens(&auth.Tokens{AccessToken: "invalid", RefreshToken: "invalid"})
+	_, err = s.auth.Credentials(ctx)
+	require.EqualError(err, "token contains an invalid number of segments")
+
+	// If the access token is expired but the refresh token is valid, should refresh
+	unexpired := &authtest.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			NotBefore: jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
+		},
+	}
+	expired := &authtest.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			NotBefore: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-5 * time.Minute)),
+		},
+	}
+
+	tokens := &auth.Tokens{}
+	tokens.AccessToken, err = s.srv.Sign(s.srv.CreateToken(expired))
+	require.NoError(err, "could not create expired access token")
+	tokens.RefreshToken, err = s.srv.Sign(s.srv.CreateToken(unexpired))
+	require.NoError(err, "could not create unexpired refresh token")
+	s.auth.SetTokens(tokens)
+
+	other, err = s.auth.Credentials(ctx)
+	require.NoError(err, "could not authenticate to test server")
+	require.NotEqual(creds, other, "expected new creds to be issued from refresh")
+
+	// Should reauthenticate if both the access token and the refresh token are expired
+	// NOTE: must create new tokens struct to avoid cached timestamps
+	tokens = &auth.Tokens{}
+	tokens.AccessToken, err = s.srv.Sign(s.srv.CreateToken(expired))
+	require.NoError(err, "could not create expired access token")
+	tokens.RefreshToken, err = s.srv.Sign(s.srv.CreateToken(expired))
+	require.NoError(err, "could not create expired refresh token")
+	s.auth.SetTokens(tokens)
+
+	compr, err := s.auth.Credentials(ctx)
+	require.NoError(err, "could not authenticate to test server")
+	require.NotEqual(other, compr, "expected new creds to be issued from authenticate")
+
 }
 
 func (s *authTestSuite) TestAuthenticate() {
