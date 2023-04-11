@@ -35,6 +35,12 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+const (
+	AuthenticateEP = "/v1/authenticate"
+	RefreshEP      = "/v1/refresh"
+	StatusEP       = "/v1/status"
+)
+
 // Client connects to the Quarterdeck authentication service in order to authenticate
 // API Keys and to refresh access tokens for Ensign access. The Client maintains the
 // API Keys and tokens so that it can hand out credentials in long running processes,
@@ -185,7 +191,7 @@ func (c *Client) Authenticate(ctx context.Context, apikey *APIKey) (tokens *Toke
 	}
 
 	var req *http.Request
-	if req, err = c.newRequest(ctx, http.MethodPost, "/v1/authenticate", apikey); err != nil {
+	if req, err = c.newRequest(ctx, http.MethodPost, AuthenticateEP, apikey); err != nil {
 		return nil, err
 	}
 
@@ -202,7 +208,7 @@ func (c *Client) Authenticate(ctx context.Context, apikey *APIKey) (tokens *Toke
 // new tokens are returned directly.
 func (c *Client) Refresh(ctx context.Context, refresh *Tokens) (tokens *Tokens, err error) {
 	var req *http.Request
-	if req, err = c.newRequest(ctx, http.MethodPost, "/v1/refresh", refresh); err != nil {
+	if req, err = c.newRequest(ctx, http.MethodPost, RefreshEP, refresh); err != nil {
 		return nil, err
 	}
 
@@ -218,7 +224,7 @@ func (c *Client) Refresh(ctx context.Context, refresh *Tokens) (tokens *Tokens, 
 // and ready to make requests. The status check is returned directly.
 func (c *Client) Status(ctx context.Context) (status *Status, err error) {
 	var req *http.Request
-	if req, err = c.newRequest(ctx, http.MethodPost, "/v1/status", nil); err != nil {
+	if req, err = c.newRequest(ctx, http.MethodPost, StatusEP, nil); err != nil {
 		return nil, err
 	}
 
@@ -246,7 +252,7 @@ func (c *Client) WaitForReady(ctx context.Context) (err error) {
 
 	// Create the status request to send until ready
 	var req *http.Request
-	if req, err = c.newRequest(ctx, http.MethodGet, "/v1/status", nil); err != nil {
+	if req, err = c.newRequest(ctx, http.MethodGet, StatusEP, nil); err != nil {
 		return err
 	}
 

@@ -30,6 +30,11 @@ func (t *Credentials) RequireTransportSecurity() bool {
 	return !t.insecure
 }
 
+// Equals compares credentials (primarily used for testing).
+func (t *Credentials) Equals(o *Credentials) bool {
+	return t.accessToken == o.accessToken && t.insecure == o.insecure
+}
+
 // PerRPCToken returns a CallOption to attach access tokens to a single RPC call.
 // Because access tokens expire and need to be refreshed; this is the preferred way of
 // attaching credentials to an RPC call.
