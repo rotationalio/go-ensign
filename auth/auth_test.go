@@ -2,7 +2,9 @@ package auth_test
 
 import (
 	"context"
+	"regexp"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/rotationalio/go-ensign/auth"
@@ -54,6 +56,23 @@ func (s *authTestSuite) TestLogin() {
 	require.True(credsc.Equals(otherc))
 }
 
+func (s *authTestSuite) TestLoginError() {
+	require := s.Require()
+	ctx := context.Background()
+
+	// Cannot login without credentials
+	_, err := s.auth.Login(ctx, "", "")
+	require.ErrorIs(err, auth.ErrIncompleteCreds)
+	_, err = s.auth.Login(ctx, "foo", "")
+	require.ErrorIs(err, auth.ErrIncompleteCreds)
+	_, err = s.auth.Login(ctx, "", "foo")
+	require.ErrorIs(err, auth.ErrIncompleteCreds)
+
+	// Cannot login with incorrect credentials
+	_, err = s.auth.Login(ctx, "hacker", "password")
+	require.EqualError(err, "[401] invalid credentials")
+}
+
 func (s *authTestSuite) TestAuthenticate() {
 	require := s.Require()
 
@@ -65,12 +84,23 @@ func (s *authTestSuite) TestAuthenticate() {
 	require.NotZero(rep, "no response returned")
 	require.NotZero(rep.AccessToken, "no access token returned")
 	require.NotZero(rep.RefreshToken, "no refresh token returned")
+
+	// Test authenticate requires apikeys
+	_, err = s.auth.Authenticate(context.Background(), nil)
+	require.ErrorIs(err, auth.ErrNoAPIKeys)
+	_, err = s.auth.Authenticate(context.Background(), &auth.APIKey{})
+	require.ErrorIs(err, auth.ErrNoAPIKeys)
+	_, err = s.auth.Authenticate(context.Background(), &auth.APIKey{ClientID: "foo"})
+	require.ErrorIs(err, auth.ErrNoAPIKeys)
+	_, err = s.auth.Authenticate(context.Background(), &auth.APIKey{ClientSecret: "foo"})
+	require.ErrorIs(err, auth.ErrNoAPIKeys)
 }
 
 func (s *authTestSuite) TestRefresh() {
 	var err error
 	require := s.Require()
 
+	// Test valid refresh
 	req := &auth.Tokens{}
 	claims := &authtest.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: "testing"}}
 	req.AccessToken, req.RefreshToken, err = s.srv.CreateTokenPair(claims)
@@ -81,6 +111,25 @@ func (s *authTestSuite) TestRefresh() {
 	require.NotZero(rep, "no access tokens returned")
 	require.NotEqual(rep.AccessToken, req.AccessToken)
 	require.NotEqual(rep.RefreshToken, req.RefreshToken)
+
+	// Test invalid refresh
+	req.RefreshToken = "bad refresh token"
+	_, err = s.auth.Refresh(context.Background(), req)
+	require.EqualError(err, "[500] token contains an invalid number of segments")
+
+	// Test expired token
+	claims = &authtest.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "expired",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-5 * time.Minute)),
+		},
+	}
+	req.RefreshToken, err = s.srv.Sign(s.srv.CreateToken(claims))
+	require.NoError(err, "could not create expired refresh token")
+
+	_, err = s.auth.Refresh(context.Background(), req)
+	require.Error(err, "expected an error returned")
+	require.Regexp(regexp.MustCompile(`^\[500\] token is expired by 5m0\.(\d+)s$`), err.Error())
 }
 
 func (s *authTestSuite) TestStatus() {
