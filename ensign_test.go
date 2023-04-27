@@ -1,11 +1,20 @@
 package sdk_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	sdk "github.com/rotationalio/go-ensign"
+	"github.com/rotationalio/go-ensign/auth"
+	"github.com/rotationalio/go-ensign/auth/authtest"
+	"github.com/rotationalio/go-ensign/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 func TestNilWilNilOpts(t *testing.T) {
@@ -34,4 +43,80 @@ func TestOptions(t *testing.T) {
 	// Test valid options
 	opts.ClientSecret = "client-secret"
 	require.NoError(t, opts.Validate(), "opts should be valid")
+}
+
+type sdkTestSuite struct {
+	suite.Suite
+	client      *sdk.Client
+	auth        *auth.Client
+	mock        *mock.Ensign
+	quarterdeck *authtest.Server
+}
+
+func TestQuarterdeck(t *testing.T) {
+	suite.Run(t, &sdkTestSuite{})
+}
+
+func (s *sdkTestSuite) SetupSuite() {
+	var err error
+	assert := s.Assert()
+
+	// Create an authtest server for authentication
+	s.quarterdeck, err = authtest.NewServer()
+	assert.NoError(err, "could not create authtest server")
+
+	// Create an auth client
+	s.auth, err = auth.New(s.quarterdeck.URL(), true)
+	assert.NoError(err, "could not create auth client")
+
+	// Create a mock Ensign server for testing
+	s.mock = mock.New(nil)
+
+	// Create a client that is mocked
+	s.client = &sdk.Client{}
+	err = s.client.ConnectAuth(s.auth)
+	assert.NoError(err, "could not connect client auth")
+
+	err = s.client.ConnectMock(
+		s.mock,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(s.auth.UnaryAuthenticate),
+		grpc.WithStreamInterceptor(s.auth.StreamAuthenticate),
+	)
+	assert.NoError(err, "could not connect mock")
+
+}
+
+func (s *sdkTestSuite) TearDownSuite() {
+	s.client.Close()
+	s.quarterdeck.Close()
+	s.mock.Shutdown()
+}
+
+func (s *sdkTestSuite) AfterTest(_, _ string) {
+	s.auth.Reset()
+	s.mock.Reset()
+}
+
+// Check an error response from the gRPC Ensign client, ensuring that it is a) a status
+// error, b) has the code specified, and c) (if supplied) that the message matches.
+func (s *sdkTestSuite) GRPCErrorIs(err error, code codes.Code, msg string) {
+	require := s.Require()
+	require.Error(err, "expected an error but none was returned")
+
+	serr, ok := status.FromError(err)
+	require.True(ok, "err is not a grpc status error")
+	require.Equal(code, serr.Code(), "status code %s did not match expected %s", serr.Code(), code)
+	if msg != "" {
+		require.Equal(msg, serr.Message(), "status message did not match the expected message")
+	}
+}
+
+// Authenticate is a one step method to ensure the client is logged into Ensign
+func (s *sdkTestSuite) Authenticate(ctx context.Context) error {
+	clientID, clientSecret := s.quarterdeck.Register()
+	if _, err := s.auth.Login(ctx, clientID, clientSecret); err != nil {
+		return err
+	}
+	return nil
 }

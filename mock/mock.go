@@ -30,6 +30,7 @@ const (
 	DeleteTopicRPC   = "/ensign.v1beta1.Ensign/DeleteTopic"
 	TopicNamesRPC    = "/ensign.v1beta1.Ensign/TopicNames"
 	TopicExistsRPC   = "/ensign/v1beta1.Ensign/TopicExists"
+	InfoRPC          = "/ensign/v1beta1.Ensign/Info"
 	StatusRPC        = "/ensign.v1beta1.Ensign/Status"
 )
 
@@ -73,6 +74,7 @@ type Ensign struct {
 	OnDeleteTopic   func(context.Context, *api.TopicMod) (*api.TopicTombstone, error)
 	OnTopicNames    func(context.Context, *api.PageInfo) (*api.TopicNamesPage, error)
 	OnTopicExists   func(context.Context, *api.TopicName) (*api.TopicExistsInfo, error)
+	OnInfo          func(context.Context, *api.InfoRequest) (*api.ProjectInfo, error)
 	OnStatus        func(context.Context, *api.HealthCheck) (*api.ServiceState, error)
 }
 
@@ -119,6 +121,7 @@ func (s *Ensign) Reset() {
 	s.OnDeleteTopic = nil
 	s.OnTopicNames = nil
 	s.OnTopicExists = nil
+	s.OnInfo = nil
 	s.OnStatus = nil
 }
 
@@ -186,6 +189,14 @@ func (s *Ensign) UseFixture(rpc, path string) (err error) {
 		s.OnTopicExists = func(context.Context, *api.TopicName) (*api.TopicExistsInfo, error) {
 			return out, nil
 		}
+	case InfoRPC:
+		out := &api.ProjectInfo{}
+		if err = jsonpb.Unmarshal(data, out); err != nil {
+			return fmt.Errorf("could not unmarshal json into %T: %v", out, err)
+		}
+		s.OnInfo = func(context.Context, *api.InfoRequest) (*api.ProjectInfo, error) {
+			return out, nil
+		}
 	case StatusRPC:
 		out := &api.ServiceState{}
 		if err = jsonpb.Unmarshal(data, out); err != nil {
@@ -233,6 +244,10 @@ func (s *Ensign) UseError(rpc string, code codes.Code, msg string) error {
 		}
 	case TopicExistsRPC:
 		s.OnTopicExists = func(context.Context, *api.TopicName) (*api.TopicExistsInfo, error) {
+			return nil, status.Error(code, msg)
+		}
+	case InfoRPC:
+		s.OnInfo = func(context.Context, *api.InfoRequest) (*api.ProjectInfo, error) {
 			return nil, status.Error(code, msg)
 		}
 	case StatusRPC:
@@ -305,6 +320,14 @@ func (s *Ensign) TopicExists(ctx context.Context, in *api.TopicName) (*api.Topic
 	s.Calls[TopicExistsRPC]++
 	if s.OnTopicExists != nil {
 		return s.OnTopicExists(ctx, in)
+	}
+	return nil, ErrUnavailable
+}
+
+func (s *Ensign) Info(ctx context.Context, in *api.InfoRequest) (*api.ProjectInfo, error) {
+	s.Calls[InfoRPC]++
+	if s.OnInfo != nil {
+		return s.OnInfo(ctx, in)
 	}
 	return nil, ErrUnavailable
 }
