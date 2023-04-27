@@ -98,6 +98,11 @@ func (c *Client) ConnectMock(mock *mock.Ensign, opts ...grpc.DialOption) (err er
 	return nil
 }
 
+func (c *Client) ConnectAuth(auth *auth.Client) error {
+	c.auth = auth
+	return nil
+}
+
 func (c *Client) Close() (err error) {
 	defer func() {
 		c.cc = nil
