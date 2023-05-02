@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"google.golang.org/grpc"
@@ -61,6 +62,7 @@ func New(bufnet *Listener, opts ...grpc.ServerOption) *Ensign {
 // the WithFixture or WithError methods. The Calls map can be used to count the number
 // of times a specific RPC was called.
 type Ensign struct {
+	sync.RWMutex
 	api.UnimplementedEnsignServer
 	bufnet          *Listener
 	srv             *grpc.Server
@@ -261,7 +263,7 @@ func (s *Ensign) UseError(rpc string, code codes.Code, msg string) error {
 }
 
 func (s *Ensign) Publish(stream api.Ensign_PublishServer) error {
-	s.Calls[PublishRPC]++
+	s.incrCalls(PublishRPC)
 	if s.OnPublish != nil {
 		return s.OnPublish(stream)
 	}
@@ -269,7 +271,7 @@ func (s *Ensign) Publish(stream api.Ensign_PublishServer) error {
 }
 
 func (s *Ensign) Subscribe(stream api.Ensign_SubscribeServer) error {
-	s.Calls[SubscribeRPC]++
+	s.incrCalls(SubscribeRPC)
 	if s.OnSubscribe != nil {
 		return s.OnSubscribe(stream)
 	}
@@ -277,7 +279,7 @@ func (s *Ensign) Subscribe(stream api.Ensign_SubscribeServer) error {
 }
 
 func (s *Ensign) ListTopics(ctx context.Context, in *api.PageInfo) (*api.TopicsPage, error) {
-	s.Calls[ListTopicsRPC]++
+	s.incrCalls(ListTopicsRPC)
 	if s.OnListTopics != nil {
 		return s.OnListTopics(ctx, in)
 	}
@@ -285,7 +287,7 @@ func (s *Ensign) ListTopics(ctx context.Context, in *api.PageInfo) (*api.TopicsP
 }
 
 func (s *Ensign) CreateTopic(ctx context.Context, in *api.Topic) (*api.Topic, error) {
-	s.Calls[CreateTopicRPC]++
+	s.incrCalls(CreateTopicRPC)
 	if s.OnCreateTopic != nil {
 		return s.OnCreateTopic(ctx, in)
 	}
@@ -293,7 +295,7 @@ func (s *Ensign) CreateTopic(ctx context.Context, in *api.Topic) (*api.Topic, er
 }
 
 func (s *Ensign) RetrieveTopic(ctx context.Context, in *api.Topic) (*api.Topic, error) {
-	s.Calls[RetrieveTopicRPC]++
+	s.incrCalls(RetrieveTopicRPC)
 	if s.OnRetrieveTopic != nil {
 		return s.OnRetrieveTopic(ctx, in)
 	}
@@ -301,7 +303,7 @@ func (s *Ensign) RetrieveTopic(ctx context.Context, in *api.Topic) (*api.Topic, 
 }
 
 func (s *Ensign) DeleteTopic(ctx context.Context, in *api.TopicMod) (*api.TopicTombstone, error) {
-	s.Calls[DeleteTopicRPC]++
+	s.incrCalls(DeleteTopicRPC)
 	if s.OnDeleteTopic != nil {
 		return s.OnDeleteTopic(ctx, in)
 	}
@@ -309,7 +311,7 @@ func (s *Ensign) DeleteTopic(ctx context.Context, in *api.TopicMod) (*api.TopicT
 }
 
 func (s *Ensign) TopicNames(ctx context.Context, in *api.PageInfo) (*api.TopicNamesPage, error) {
-	s.Calls[TopicNamesRPC]++
+	s.incrCalls(TopicNamesRPC)
 	if s.OnTopicNames != nil {
 		return s.OnTopicNames(ctx, in)
 	}
@@ -317,7 +319,7 @@ func (s *Ensign) TopicNames(ctx context.Context, in *api.PageInfo) (*api.TopicNa
 }
 
 func (s *Ensign) TopicExists(ctx context.Context, in *api.TopicName) (*api.TopicExistsInfo, error) {
-	s.Calls[TopicExistsRPC]++
+	s.incrCalls(TopicExistsRPC)
 	if s.OnTopicExists != nil {
 		return s.OnTopicExists(ctx, in)
 	}
@@ -325,7 +327,7 @@ func (s *Ensign) TopicExists(ctx context.Context, in *api.TopicName) (*api.Topic
 }
 
 func (s *Ensign) Info(ctx context.Context, in *api.InfoRequest) (*api.ProjectInfo, error) {
-	s.Calls[InfoRPC]++
+	s.incrCalls(InfoRPC)
 	if s.OnInfo != nil {
 		return s.OnInfo(ctx, in)
 	}
@@ -333,9 +335,15 @@ func (s *Ensign) Info(ctx context.Context, in *api.InfoRequest) (*api.ProjectInf
 }
 
 func (s *Ensign) Status(ctx context.Context, in *api.HealthCheck) (*api.ServiceState, error) {
-	s.Calls[StatusRPC]++
+	s.incrCalls(StatusRPC)
 	if s.OnStatus != nil {
 		return s.OnStatus(ctx, in)
 	}
 	return nil, ErrUnavailable
+}
+
+func (s *Ensign) incrCalls(call string) {
+	s.Lock()
+	s.Calls[call]++
+	s.Unlock()
 }
