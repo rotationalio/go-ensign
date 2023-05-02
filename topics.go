@@ -14,8 +14,10 @@ const DefaultPageSize uint32 = 100
 
 // Check if a topic with the specified name exists in the project or not.
 func (c *Client) TopicExists(ctx context.Context, topicName string) (_ bool, err error) {
+	defer c.resetCallOpts()
+
 	var info *api.TopicExistsInfo
-	if info, err = c.api.TopicExists(ctx, &api.TopicName{Name: topicName}); err != nil {
+	if info, err = c.api.TopicExists(ctx, &api.TopicName{Name: topicName}, c.copts...); err != nil {
 		return false, err
 	}
 	return info.Exists, nil
@@ -23,8 +25,10 @@ func (c *Client) TopicExists(ctx context.Context, topicName string) (_ bool, err
 
 // Create topic with the specified name and return the topic ID if there was no error.
 func (c *Client) CreateTopic(ctx context.Context, topic string) (_ string, err error) {
+	defer c.resetCallOpts()
+
 	var reply *api.Topic
-	if reply, err = c.api.CreateTopic(ctx, &api.Topic{Name: topic}); err != nil {
+	if reply, err = c.api.CreateTopic(ctx, &api.Topic{Name: topic}, c.copts...); err != nil {
 		// TODO: do a better job of categorizing the error
 		return "", err
 	}
@@ -39,6 +43,8 @@ func (c *Client) CreateTopic(ctx context.Context, topic string) (_ string, err e
 }
 
 func (c *Client) ListTopics(ctx context.Context) (topics []*api.Topic, err error) {
+	defer c.resetCallOpts()
+
 	// TODO: return an iterator rather than materializing all of the topics
 	topics = make([]*api.Topic, 0)
 	query := &api.PageInfo{PageSize: DefaultPageSize}
@@ -54,7 +60,7 @@ func (c *Client) ListTopics(ctx context.Context) (topics []*api.Topic, err error
 		}
 
 		// Make the topics page request
-		if page, err = c.api.ListTopics(ctx, query); err != nil {
+		if page, err = c.api.ListTopics(ctx, query, c.copts...); err != nil {
 			// TODO: do a better job of categorizing the error
 			return nil, err
 		}
@@ -80,6 +86,8 @@ func (c *Client) DestroyTopic(ctx context.Context, topicID string) (err error) {
 // Find a topic ID from a topic name.
 // TODO: automate and cache this on the client for easier lookups.
 func (c *Client) TopicID(ctx context.Context, topicName string) (_ string, err error) {
+	defer c.resetCallOpts()
+
 	// Create a base64 encoded murmur3 hash of the topic name
 	hash := murmur3.New128()
 	hash.Write([]byte(topicName))
@@ -90,7 +98,7 @@ func (c *Client) TopicID(ctx context.Context, topicName string) (_ string, err e
 	query := &api.PageInfo{PageSize: uint32(100)}
 
 	for page == nil || page.NextPageToken != "" {
-		if page, err = c.api.TopicNames(ctx, query); err != nil {
+		if page, err = c.api.TopicNames(ctx, query, c.copts...); err != nil {
 			return "", err
 		}
 

@@ -18,10 +18,11 @@ const BufferSize = 128
 
 // Client manages the credentials and connection to the ensign server.
 type Client struct {
-	opts *Options
-	cc   *grpc.ClientConn
-	api  api.EnsignClient
-	auth *auth.Client
+	opts  *Options
+	cc    *grpc.ClientConn
+	api   api.EnsignClient
+	auth  *auth.Client
+	copts []grpc.CallOption
 }
 
 // Publisher is a low level interface for sending events to a topic or a group of topics
@@ -118,13 +119,15 @@ func (c *Client) Close() (err error) {
 }
 
 func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
+	defer c.resetCallOpts()
+
 	pub := &publisher{
 		send: make(chan *api.Event, BufferSize),
 		recv: make(chan *api.Publication, BufferSize),
 		stop: make(chan struct{}, 1),
 		errc: make(chan error, 1),
 	}
-	if pub.stream, err = c.api.Publish(ctx); err != nil {
+	if pub.stream, err = c.api.Publish(ctx, c.copts...); err != nil {
 		return nil, err
 	}
 
@@ -137,6 +140,8 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 }
 
 func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber, err error) {
+	defer c.resetCallOpts()
+
 	sub := &subscriber{
 		send: make(chan *api.Subscription, BufferSize),
 		recv: make([]chan<- *api.Event, 0, 1),
@@ -145,7 +150,7 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 	}
 
 	// Connect to the stream and send stream policy information
-	if sub.stream, err = c.api.Subscribe(ctx); err != nil {
+	if sub.stream, err = c.api.Subscribe(ctx, c.copts...); err != nil {
 		return nil, err
 	}
 
@@ -168,6 +173,19 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 	go sub.recver()
 
 	return sub, nil
+}
+
+// WithCallOptions configures the next client Call to use the specified call options,
+// after the call, the call options are removed. This method returns the Client pointer
+// so that you can easily chain a call e.g. client.WithCallOptions(opts...).ListTopics()
+// -- this ensures that we don't have to pass call options in to each individual call.
+func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
+	c.copts = opts
+	return c
+}
+
+func (c *Client) resetCallOpts() {
+	c.copts = nil
 }
 
 func (c *Client) EnsignClient() api.EnsignClient {

@@ -17,6 +17,8 @@ import (
 //
 // TODO: allow users to specify either topic names or topic IDs.
 func (c *Client) Info(ctx context.Context, topicIDs ...string) (info *api.ProjectInfo, err error) {
+	defer c.resetCallOpts()
+
 	req := &api.InfoRequest{
 		Topics: make([][]byte, 0, len(topicIDs)),
 	}
@@ -29,7 +31,7 @@ func (c *Client) Info(ctx context.Context, topicIDs ...string) (info *api.Projec
 		req.Topics = append(req.Topics, tid.Bytes())
 	}
 
-	if info, err = c.api.Info(ctx, req); err != nil {
+	if info, err = c.api.Info(ctx, req, c.copts...); err != nil {
 		// TODO: do a better job of categorizing the error
 		return nil, err
 	}
