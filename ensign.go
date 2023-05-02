@@ -178,7 +178,8 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 // Ensure that the clone of the client is discarded and garbage collected after use;
 // the clone cannot be used to close the connection or fetch the options.
 //
-// Experimental
+// Experimental: call options and thread-safe cloning is an experimental feature and its
+// signature may be subject to change in the future.
 func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
 	// Return a clone of the client with the api interface and the opts but do not
 	// include the grpc connection to ensure only the original client can close it.
