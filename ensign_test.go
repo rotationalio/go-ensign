@@ -159,7 +159,6 @@ func (s *sdkTestSuite) TestWithCallOptions() {
 			assert.NoError(err, "could not make info request from clone")
 		}
 	}()
-	// wg.Done()
 
 	go func() {
 		defer wg.Done()
