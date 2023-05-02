@@ -29,7 +29,7 @@ func (c *Client) Info(ctx context.Context, topicIDs ...string) (info *api.Projec
 		req.Topics = append(req.Topics, tid.Bytes())
 	}
 
-	if info, err = c.api.Info(ctx, req); err != nil {
+	if info, err = c.api.Info(ctx, req, c.copts...); err != nil {
 		// TODO: do a better job of categorizing the error
 		return nil, err
 	}

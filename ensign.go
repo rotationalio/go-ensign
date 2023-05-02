@@ -18,10 +18,11 @@ const BufferSize = 128
 
 // Client manages the credentials and connection to the ensign server.
 type Client struct {
-	opts *Options
-	cc   *grpc.ClientConn
-	api  api.EnsignClient
-	auth *auth.Client
+	opts  *Options
+	cc    *grpc.ClientConn
+	api   api.EnsignClient
+	auth  *auth.Client
+	copts []grpc.CallOption
 }
 
 // Publisher is a low level interface for sending events to a topic or a group of topics
@@ -124,7 +125,7 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 		stop: make(chan struct{}, 1),
 		errc: make(chan error, 1),
 	}
-	if pub.stream, err = c.api.Publish(ctx); err != nil {
+	if pub.stream, err = c.api.Publish(ctx, c.copts...); err != nil {
 		return nil, err
 	}
 
@@ -145,7 +146,7 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 	}
 
 	// Connect to the stream and send stream policy information
-	if sub.stream, err = c.api.Subscribe(ctx); err != nil {
+	if sub.stream, err = c.api.Subscribe(ctx, c.copts...); err != nil {
 		return nil, err
 	}
 
@@ -168,6 +169,27 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 	go sub.recver()
 
 	return sub, nil
+}
+
+// WithCallOptions configures the next client Call to use the specified call options,
+// after the call, the call options are removed. This method returns the Client pointer
+// so that you can easily chain a call e.g. client.WithCallOptions(opts...).ListTopics()
+// -- this ensures that we don't have to pass call options in to each individual call.
+// Ensure that the clone of the client is discarded and garbage collected after use;
+// the clone cannot be used to close the connection or fetch the options.
+//
+// Experimental: call options and thread-safe cloning is an experimental feature and its
+// signature may be subject to change in the future.
+func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
+	// Return a clone of the client with the api interface and the opts but do not
+	// include the grpc connection to ensure only the original client can close it.
+	client := &Client{
+		opts:  c.opts,
+		api:   c.api,
+		auth:  c.auth,
+		copts: opts,
+	}
+	return client
 }
 
 func (c *Client) EnsignClient() api.EnsignClient {
