@@ -119,8 +119,6 @@ func (c *Client) Close() (err error) {
 }
 
 func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
-	defer c.resetCallOpts()
-
 	pub := &publisher{
 		send: make(chan *api.Event, BufferSize),
 		recv: make(chan *api.Publication, BufferSize),
@@ -140,8 +138,6 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 }
 
 func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber, err error) {
-	defer c.resetCallOpts()
-
 	sub := &subscriber{
 		send: make(chan *api.Subscription, BufferSize),
 		recv: make([]chan<- *api.Event, 0, 1),
@@ -179,13 +175,20 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 // after the call, the call options are removed. This method returns the Client pointer
 // so that you can easily chain a call e.g. client.WithCallOptions(opts...).ListTopics()
 // -- this ensures that we don't have to pass call options in to each individual call.
+// Ensure that the clone of the client is discarded and garbage collected after use;
+// the clone cannot be used to close the connection or fetch the options.
+//
+// Experimental
 func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
-	c.copts = opts
-	return c
-}
-
-func (c *Client) resetCallOpts() {
-	c.copts = nil
+	// Return a clone of the client with the api interface and the opts but do not
+	// include the grpc connection to ensure only the original client can close it.
+	client := &Client{
+		opts:  c.opts,
+		api:   c.api,
+		auth:  c.auth,
+		copts: opts,
+	}
+	return client
 }
 
 func (c *Client) EnsignClient() api.EnsignClient {

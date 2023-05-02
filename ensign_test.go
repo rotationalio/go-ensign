@@ -3,9 +3,11 @@ package sdk_test
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 
 	sdk "github.com/rotationalio/go-ensign"
+	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"github.com/rotationalio/go-ensign/auth"
 	"github.com/rotationalio/go-ensign/auth/authtest"
 	"github.com/rotationalio/go-ensign/mock"
@@ -53,7 +55,7 @@ type sdkTestSuite struct {
 	quarterdeck *authtest.Server
 }
 
-func TestQuarterdeck(t *testing.T) {
+func TestEnsignSDK(t *testing.T) {
 	suite.Run(t, &sdkTestSuite{})
 }
 
@@ -119,4 +121,57 @@ func (s *sdkTestSuite) Authenticate(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+// Test WithCallOptions
+func (s *sdkTestSuite) TestWithCallOptions() {
+	require := s.Require()
+	assert := s.Assert()
+	ctx := context.Background()
+
+	// Authenticate the client for info tests
+	err := s.Authenticate(ctx)
+	require.NoError(err, "must be able to authenticate")
+
+	clone := s.client.WithCallOptions(grpc.CallContentSubtype("json"), auth.PerRPCToken("token", false))
+	require.NotSame(s.client, clone, "expected a clone returned not the same object")
+
+	// The codec call option should create an error
+	_, err = clone.Info(ctx)
+	s.GRPCErrorIs(err, codes.Internal, "no codec registered for content-subtype json")
+
+	// Return just an authenticated clone
+	clone = s.client.WithCallOptions(auth.PerRPCToken("token", false))
+
+	// Update the background mock method to count the call options
+	s.mock.OnInfo = func(context.Context, *api.InfoRequest) (*api.ProjectInfo, error) {
+		return &api.ProjectInfo{}, nil
+	}
+
+	// The call option should be sent to the mock from the clone and should be thread-safe
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 10; i++ {
+			_, err := clone.Info(context.Background())
+			assert.NoError(err, "could not make info request from clone")
+		}
+	}()
+	// wg.Done()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 10; i++ {
+			_, err := s.client.Info(ctx)
+			assert.NoError(err, "could not make info request from client")
+		}
+	}()
+
+	wg.Wait()
+	require.Equal(20, s.mock.Calls[mock.InfoRPC], "expected 20 calls to info rpc")
+
+	// This must happen last for the test to pass
+	require.NotPanics(func() { clone.Close() }, "expected clone to not panic on close")
 }
