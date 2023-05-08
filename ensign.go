@@ -140,7 +140,15 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 		return nil, err
 	}
 
-	// TODO: perform a recv to ensure the stream has been successfully connected to
+	// TODO: handle the topic map returned from the server
+	var rep *api.PublisherReply
+	if rep, err = pub.stream.Recv(); err != nil {
+		return nil, err
+	}
+
+	if ready := rep.GetReady(); ready == nil {
+		return nil, ErrStreamUninitialized
+	}
 
 	// Start go routines
 	pub.wg.Add(2)
@@ -174,7 +182,15 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 		return nil, err
 	}
 
-	// TODO: perform a recv to ensure the stream has been successfully connected to
+	// TODO: handle the topic map returned from the server
+	var rep *api.SubscribeReply
+	if rep, err = sub.stream.Recv(); err != nil {
+		return nil, err
+	}
+
+	if ready := rep.GetReady(); ready == nil {
+		return nil, ErrStreamUninitialized
+	}
 
 	// Start go routines
 	sub.wg.Add(2)
