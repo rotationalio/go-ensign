@@ -37,8 +37,8 @@ type Subscriber interface {
 	io.Closer
 	Errorer
 	Subscribe() (<-chan *api.Event, error)
-	Ack(id string) error
-	Nack(id string, err error) error
+	Ack(id []byte) error
+	Nack(id []byte, err error) error
 }
 
 func New(opts *Options) (client *Client, err error) {
@@ -120,13 +120,34 @@ func (c *Client) Close() (err error) {
 
 func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 	pub := &publisher{
-		send: make(chan *api.Event, BufferSize),
-		recv: make(chan *api.Publication, BufferSize),
+		send: make(chan *api.EventWrapper, BufferSize),
+		recv: make(chan *api.PublisherReply, BufferSize),
 		stop: make(chan struct{}, 1),
 		errc: make(chan error, 1),
 	}
+
+	// Connect to the stream and send the open stream request
 	if pub.stream, err = c.api.Publish(ctx, c.copts...); err != nil {
 		return nil, err
+	}
+
+	// TODO: should we send topics from the topic cache?
+	open := &api.OpenStream{
+		ClientId: ulid.Make().String(),
+	}
+
+	if err = pub.stream.Send(&api.PublisherRequest{Embed: &api.PublisherRequest_OpenStream{OpenStream: open}}); err != nil {
+		return nil, err
+	}
+
+	// TODO: handle the topic map returned from the server
+	var rep *api.PublisherReply
+	if rep, err = pub.stream.Recv(); err != nil {
+		return nil, err
+	}
+
+	if ready := rep.GetReady(); ready == nil {
+		return nil, ErrStreamUninitialized
 	}
 
 	// Start go routines
@@ -139,7 +160,7 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 
 func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber, err error) {
 	sub := &subscriber{
-		send: make(chan *api.Subscription, BufferSize),
+		send: make(chan *api.SubscribeRequest, BufferSize),
 		recv: make([]chan<- *api.Event, 0, 1),
 		stop: make(chan struct{}, 1),
 		errc: make(chan error, 1),
@@ -152,16 +173,24 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 
 	// TODO: map topic names to IDs
 	// TODO: handle consumer groups here
-	open := &api.OpenStream{
-		ConsumerId: ulid.Make().String(),
-		Topics:     topics,
+	open := &api.Subscription{
+		ClientId: ulid.Make().String(),
+		Topics:   topics,
 	}
 
-	if err = sub.stream.Send(&api.Subscription{Embed: &api.Subscription_OpenStream{OpenStream: open}}); err != nil {
+	if err = sub.stream.Send(&api.SubscribeRequest{Embed: &api.SubscribeRequest_Subscription{Subscription: open}}); err != nil {
 		return nil, err
 	}
 
-	// TODO: perform a recv to ensure the stream has been successfully connected to
+	// TODO: handle the topic map returned from the server
+	var rep *api.SubscribeReply
+	if rep, err = sub.stream.Recv(); err != nil {
+		return nil, err
+	}
+
+	if ready := rep.GetReady(); ready == nil {
+		return nil, ErrStreamUninitialized
+	}
 
 	// Start go routines
 	sub.wg.Add(2)

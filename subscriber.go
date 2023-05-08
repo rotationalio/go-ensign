@@ -9,7 +9,7 @@ import (
 type subscriber struct {
 	sync.RWMutex
 	stream api.Ensign_SubscribeClient
-	send   chan *api.Subscription
+	send   chan *api.SubscribeRequest
 	recv   []chan<- *api.Event
 	stop   chan struct{}
 	wg     sync.WaitGroup
@@ -26,9 +26,9 @@ func (c *subscriber) Subscribe() (<-chan *api.Event, error) {
 	return sub, nil
 }
 
-func (c *subscriber) Ack(id string) error {
-	c.send <- &api.Subscription{
-		Embed: &api.Subscription_Ack{
+func (c *subscriber) Ack(id []byte) error {
+	c.send <- &api.SubscribeRequest{
+		Embed: &api.SubscribeRequest_Ack{
 			Ack: &api.Ack{
 				Id: id,
 			},
@@ -37,7 +37,7 @@ func (c *subscriber) Ack(id string) error {
 	return nil
 }
 
-func (c *subscriber) Nack(id string, err error) error {
+func (c *subscriber) Nack(id []byte, err error) error {
 	nack := &api.Nack{
 		Id: id,
 	}
@@ -45,8 +45,8 @@ func (c *subscriber) Nack(id string, err error) error {
 		nack.Error = err.Error()
 	}
 
-	c.send <- &api.Subscription{
-		Embed: &api.Subscription_Nack{
+	c.send <- &api.SubscribeRequest{
+		Embed: &api.SubscribeRequest_Nack{
 			Nack: nack,
 		},
 	}
@@ -100,9 +100,20 @@ func (c *subscriber) recver() {
 			return
 		}
 
+		// Fetch the event from the subscribe reply
+		// TODO: handle other message types such as close stream
+		var evt *api.Event
+		if wrapper := e.GetEvent(); evt != nil {
+			evt, _ = wrapper.Unwrap()
+		}
+
+		if evt == nil {
+			continue
+		}
+
 		c.RLock()
 		for _, sub := range c.recv {
-			sub <- e
+			sub <- evt
 		}
 		c.RUnlock()
 	}
