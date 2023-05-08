@@ -125,9 +125,22 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 		stop: make(chan struct{}, 1),
 		errc: make(chan error, 1),
 	}
+
+	// Connect to the stream and send the open stream request
 	if pub.stream, err = c.api.Publish(ctx, c.copts...); err != nil {
 		return nil, err
 	}
+
+	// TODO: should we send topics from the topic cache?
+	open := &api.OpenStream{
+		ClientId: ulid.Make().String(),
+	}
+
+	if err = pub.stream.Send(&api.PublisherRequest{Embed: &api.PublisherRequest_OpenStream{OpenStream: open}}); err != nil {
+		return nil, err
+	}
+
+	// TODO: perform a recv to ensure the stream has been successfully connected to
 
 	// Start go routines
 	pub.wg.Add(2)
