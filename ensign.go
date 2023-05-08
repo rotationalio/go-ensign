@@ -37,8 +37,8 @@ type Subscriber interface {
 	io.Closer
 	Errorer
 	Subscribe() (<-chan *api.Event, error)
-	Ack(id string) error
-	Nack(id string, err error) error
+	Ack(id []byte) error
+	Nack(id []byte, err error) error
 }
 
 func New(opts *Options) (client *Client, err error) {
@@ -120,8 +120,8 @@ func (c *Client) Close() (err error) {
 
 func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 	pub := &publisher{
-		send: make(chan *api.Event, BufferSize),
-		recv: make(chan *api.Publication, BufferSize),
+		send: make(chan *api.EventWrapper, BufferSize),
+		recv: make(chan *api.PublisherReply, BufferSize),
 		stop: make(chan struct{}, 1),
 		errc: make(chan error, 1),
 	}
@@ -139,7 +139,7 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 
 func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber, err error) {
 	sub := &subscriber{
-		send: make(chan *api.Subscription, BufferSize),
+		send: make(chan *api.SubscribeRequest, BufferSize),
 		recv: make([]chan<- *api.Event, 0, 1),
 		stop: make(chan struct{}, 1),
 		errc: make(chan error, 1),
@@ -152,12 +152,12 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber,
 
 	// TODO: map topic names to IDs
 	// TODO: handle consumer groups here
-	open := &api.OpenStream{
-		ConsumerId: ulid.Make().String(),
-		Topics:     topics,
+	open := &api.Subscription{
+		ClientId: ulid.Make().String(),
+		Topics:   topics,
 	}
 
-	if err = sub.stream.Send(&api.Subscription{Embed: &api.Subscription_OpenStream{OpenStream: open}}); err != nil {
+	if err = sub.stream.Send(&api.SubscribeRequest{Embed: &api.SubscribeRequest_Subscription{Subscription: open}}); err != nil {
 		return nil, err
 	}
 

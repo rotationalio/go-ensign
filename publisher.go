@@ -4,13 +4,14 @@ import (
 	"io"
 	"sync"
 
+	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 )
 
 type publisher struct {
 	stream api.Ensign_PublishClient
-	send   chan *api.Event
-	recv   chan *api.Publication
+	send   chan *api.EventWrapper
+	recv   chan *api.PublisherReply
 	stop   chan struct{}
 	wg     sync.WaitGroup
 	errc   chan error
@@ -19,10 +20,20 @@ type publisher struct {
 var _ Publisher = &publisher{}
 
 func (c *publisher) Publish(topic string, events ...*api.Event) {
-	for _, e := range events {
+	// TODO: handle topic name mapping and topic manager
+	// TODO: better error handling
+	topicID, _ := ulid.Parse(topic)
+
+	for _, event := range events {
 		// TODO: handle topic name mapping
-		e.TopicId = topic
-		c.send <- e
+		env := &api.EventWrapper{
+			TopicId: topicID.Bytes(),
+		}
+
+		// TODO: handle errors
+		env.Wrap(event)
+
+		c.send <- env
 	}
 }
 
@@ -49,7 +60,7 @@ func (c *publisher) Close() error {
 func (c *publisher) sender() {
 	defer c.wg.Done()
 	for e := range c.send {
-		if err := c.stream.Send(e); err != nil {
+		if err := c.stream.Send(&api.PublisherRequest{Embed: &api.PublisherRequest_Event{Event: e}}); err != nil {
 			c.errc <- err
 			return
 		}
