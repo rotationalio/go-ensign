@@ -1,4 +1,4 @@
-package sdk
+package ensign
 
 import (
 	"context"
@@ -18,7 +18,7 @@ const BufferSize = 128
 
 // Client manages the credentials and connection to the ensign server.
 type Client struct {
-	opts  *Options
+	opts  Options
 	cc    *grpc.ClientConn
 	api   api.EnsignClient
 	auth  *auth.Client
@@ -41,18 +41,13 @@ type Subscriber interface {
 	Nack(id []byte, err error) error
 }
 
-func New(opts *Options) (client *Client, err error) {
-	if opts == nil {
-		opts = NewOptions()
-	}
-
-	if err = opts.Validate(); err != nil {
+func New(opts ...Option) (client *Client, err error) {
+	client = &Client{}
+	if client.opts, err = NewOptions(opts...); err != nil {
 		return nil, err
 	}
 
-	client = &Client{opts: opts}
-
-	if client.auth, err = auth.New(opts.AuthURL, opts.Insecure); err != nil {
+	if client.auth, err = auth.New(client.opts.AuthURL, client.opts.Insecure); err != nil {
 		return nil, err
 	}
 
@@ -116,6 +111,10 @@ func (c *Client) Close() (err error) {
 		}
 	}
 	return nil
+}
+
+func (c *Client) Status(ctx context.Context) (state *api.ServiceState, err error) {
+	return c.api.Status(ctx, &api.HealthCheck{}, c.copts...)
 }
 
 func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
