@@ -1,8 +1,7 @@
-package sdk_test
+package ensign_test
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 
@@ -11,41 +10,12 @@ import (
 	"github.com/rotationalio/go-ensign/auth"
 	"github.com/rotationalio/go-ensign/auth/authtest"
 	"github.com/rotationalio/go-ensign/mock"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
-
-func TestNilWilNilOpts(t *testing.T) {
-	os.Setenv("ENSIGN_NO_AUTHENTICATION", "true")
-	_, err := sdk.New(nil)
-	require.NoError(t, err, "could not pass nil into ensign")
-}
-
-func TestOptions(t *testing.T) {
-	opts := &sdk.Options{
-		Endpoint:     "localhost:443",
-		ClientID:     "client-id",
-		ClientSecret: "client-secret",
-	}
-
-	// Test ClientID is required
-	opts.Endpoint = "localhost:443"
-	opts.ClientID = ""
-	require.EqualError(t, opts.Validate(), sdk.ErrMissingClientID.Error(), "opts should be invalid with missing client ID")
-
-	// Test ClientSecret is required
-	opts.ClientID = "client-id"
-	opts.ClientSecret = ""
-	require.EqualError(t, opts.Validate(), sdk.ErrMissingClientSecret.Error(), "opts should be invalid with missing client secret")
-
-	// Test valid options
-	opts.ClientSecret = "client-secret"
-	require.NoError(t, opts.Validate(), "opts should be valid")
-}
 
 type sdkTestSuite struct {
 	suite.Suite

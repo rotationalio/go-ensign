@@ -1,3 +1,3 @@
-package sdk
+package ensign
 
 //go:generate bash generate.sh
