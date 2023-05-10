@@ -4,11 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"sync"
 
 	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"github.com/rotationalio/go-ensign/auth"
-	"github.com/rotationalio/go-ensign/mock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,6 +18,7 @@ const BufferSize = 128
 
 // Client manages the credentials and connection to the ensign server.
 type Client struct {
+	sync.RWMutex
 	opts  Options
 	cc    *grpc.ClientConn
 	api   api.EnsignClient
@@ -47,36 +48,54 @@ func New(opts ...Option) (client *Client, err error) {
 		return nil, err
 	}
 
-	if client.auth, err = auth.New(client.opts.AuthURL, client.opts.Insecure); err != nil {
-		return nil, err
+	// Connect to the authentication service -- this must happen before the connection
+	// to the ensign server so that the client-side interceptors can be created.
+	if !client.opts.NoAuthentication {
+		if client.auth, err = auth.New(client.opts.AuthURL, client.opts.Insecure); err != nil {
+			return nil, err
+		}
 	}
 
-	if err = client.Connect(); err != nil {
+	// If in testing mode, connect to the mock and stop connecting.
+	if client.opts.Testing {
+		if err = client.connectMock(); err != nil {
+			return nil, err
+		}
+		return client, nil
+	}
+
+	// If not in testing mode, connect to the Ensign server.
+	if err = client.connect(); err != nil {
 		return nil, err
 	}
 	return client, nil
 }
 
-func (c *Client) Connect(opts ...grpc.DialOption) (err error) {
+func (c *Client) connect() (err error) {
+	// Fetch the dialing options from the ensign config.
+	opts := make([]grpc.DialOption, 0, 3)
+	opts = append(opts, c.opts.Dialing...)
+
+	// If no dialing opts were specified create default dialing options.
 	if len(opts) == 0 {
-		opts = make([]grpc.DialOption, 0, 2)
 		if c.opts.Insecure {
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		} else {
 			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
 		}
-	}
 
-	if !c.opts.NoAuthentication {
-		// Rather than using the PerRPC Dial Option add interceptors that ensure the
-		// access and refresh token are valid on every RPC call, reauthenticating with
-		// Quarterdeck as necessary. NOTE: must ensure that we login first!
-		if _, err = c.auth.Login(context.Background(), c.opts.ClientID, c.opts.ClientSecret); err != nil {
-			return err
+		if !c.opts.NoAuthentication {
+			// Rather than using the PerRPC Dial Option add interceptors that ensure the
+			// access and refresh token are valid on every RPC call, and that
+			// reauthenticate with Quarterdeck when access tokens expire.
+			// NOTE: must ensure that we login first!
+			if _, err = c.auth.Login(context.Background(), c.opts.ClientID, c.opts.ClientSecret); err != nil {
+				return err
+			}
+
+			opts = append(opts, grpc.WithUnaryInterceptor(c.auth.UnaryAuthenticate))
+			opts = append(opts, grpc.WithStreamInterceptor(c.auth.StreamAuthenticate))
 		}
-
-		opts = append(opts, grpc.WithUnaryInterceptor(c.auth.UnaryAuthenticate))
-		opts = append(opts, grpc.WithStreamInterceptor(c.auth.StreamAuthenticate))
 	}
 
 	if c.cc, err = grpc.Dial(c.opts.Endpoint, opts...); err != nil {
@@ -87,22 +106,23 @@ func (c *Client) Connect(opts ...grpc.DialOption) (err error) {
 	return nil
 }
 
-func (c *Client) ConnectMock(mock *mock.Ensign, opts ...grpc.DialOption) (err error) {
-	if c.api, err = mock.Client(context.Background(), opts...); err != nil {
+func (c *Client) connectMock() (err error) {
+	if !c.opts.Testing || c.opts.Mock == nil {
+		return ErrMissingMock
+	}
+
+	if c.api, err = c.opts.Mock.Client(context.Background(), c.opts.Dialing...); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Client) ConnectAuth(auth *auth.Client) error {
-	c.auth = auth
-	return nil
-}
-
 func (c *Client) Close() (err error) {
+	c.Lock()
 	defer func() {
 		c.cc = nil
 		c.api = nil
+		c.Unlock()
 	}()
 
 	if c.cc != nil {

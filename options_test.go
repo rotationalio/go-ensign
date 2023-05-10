@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	sdk "github.com/rotationalio/go-ensign"
+	"github.com/rotationalio/go-ensign/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var testEnv = map[string]string{
@@ -59,12 +62,13 @@ func TestLoadCredentials(t *testing.T) {
 func TestWithEnsignEndpoint(t *testing.T) {
 	opts, err := sdk.NewOptions(
 		sdk.WithCredentials("testing123", "supersecret"),
-		sdk.WithEnsignEndpoint("events.ensign.world:443", true),
+		sdk.WithEnsignEndpoint("events.ensign.world:443", true, grpc.WithTransportCredentials(insecure.NewCredentials())),
 	)
 	require.NoError(t, err, "could not create opts with ensign endpoint")
 
 	require.Equal(t, "events.ensign.world:443", opts.Endpoint)
 	require.True(t, opts.Insecure)
+	require.Len(t, opts.Dialing, 1)
 }
 
 func TestWithAuthenticator(t *testing.T) {
@@ -93,6 +97,16 @@ func TestWithOptions(t *testing.T) {
 	require.Equal(t, original, opts, "original and opts should be identical")
 }
 
+func TestWithMock(t *testing.T) {
+	mock := mock.New(nil)
+	opts, err := sdk.NewOptions(sdk.WithMock(mock, grpc.WithTransportCredentials(insecure.NewCredentials())))
+	require.NoError(t, err, "could not create opts mock")
+
+	require.True(t, opts.Testing, "expected opts to be in testing mode")
+	require.Same(t, opts.Mock, mock, "expected mock to be set on opts")
+	require.Len(t, opts.Dialing, 1, "expected one dial option to be set on mock")
+}
+
 func TestOptionsDefaults(t *testing.T) {
 	opts := &sdk.Options{
 		ClientID:     "testing123",
@@ -105,6 +119,9 @@ func TestOptionsDefaults(t *testing.T) {
 	require.Equal(t, sdk.AuthEndpoint, opts.AuthURL)
 	require.False(t, opts.Insecure)
 	require.False(t, opts.NoAuthentication)
+	require.False(t, opts.Testing)
+	require.Nil(t, opts.Mock)
+	require.Nil(t, opts.Dialing)
 }
 
 func TestOptionsSetFromEnvironment(t *testing.T) {
@@ -122,6 +139,9 @@ func TestOptionsSetFromEnvironment(t *testing.T) {
 	require.True(t, opts.Insecure, "expected insecure set to true from env")
 	require.Equal(t, testEnv[sdk.EnvAuthURL], opts.AuthURL, "expected auth url set from env")
 	require.True(t, opts.NoAuthentication, "expected no authentication set to true from env")
+	require.False(t, opts.Testing, "expected testing to be false")
+	require.Nil(t, opts.Mock, "expected mock to be nil")
+	require.Nil(t, opts.Dialing, "expected dialing options to be nil")
 }
 
 func TestSetCredentialsPriority(t *testing.T) {
@@ -146,9 +166,12 @@ func TestOptionsValidation(t *testing.T) {
 		ClientID:         "testing123",
 		ClientSecret:     "supersecret",
 		Endpoint:         "ensign.world:443",
+		Dialing:          nil,
 		AuthURL:          "https://auth.ensign.world",
 		Insecure:         false,
 		NoAuthentication: false,
+		Testing:          false,
+		Mock:             nil,
 	}
 
 	// Complete credentials should be valid
@@ -177,6 +200,18 @@ func TestCredsNotRequired(t *testing.T) {
 	require.NoError(t, err, "no credentials are required if NoAuthentication is true")
 	require.Empty(t, opts.ClientID, "unexepcted value set for test")
 	require.Empty(t, opts.ClientSecret, "unexepcted value set for test")
+}
+
+func TestTestingOptions(t *testing.T) {
+	// Only mock is required in testing mode
+	opts := &sdk.Options{Testing: true, Mock: mock.New(nil)}
+	err := opts.Validate()
+	require.NoError(t, err, "only mock is required in testing mode")
+
+	// Mock required in testing mode
+	opts.Mock = nil
+	err = opts.Validate()
+	require.ErrorIs(t, err, sdk.ErrMissingMock)
 }
 
 // Returns the current environment for the specified keys, or if no keys are specified

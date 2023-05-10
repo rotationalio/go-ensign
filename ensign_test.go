@@ -37,26 +37,24 @@ func (s *sdkTestSuite) SetupSuite() {
 	s.quarterdeck, err = authtest.NewServer()
 	assert.NoError(err, "could not create authtest server")
 
+	// Create a mock Ensign server for testing
+	s.mock = mock.New(nil)
+
 	// Create an auth client
 	s.auth, err = auth.New(s.quarterdeck.URL(), true)
 	assert.NoError(err, "could not create auth client")
 
-	// Create a mock Ensign server for testing
-	s.mock = mock.New(nil)
-
 	// Create a client that is mocked
-	s.client = &sdk.Client{}
-	err = s.client.ConnectAuth(s.auth)
-	assert.NoError(err, "could not connect client auth")
-
-	err = s.client.ConnectMock(
-		s.mock,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(s.auth.UnaryAuthenticate),
-		grpc.WithStreamInterceptor(s.auth.StreamAuthenticate),
+	s.client, err = sdk.New(
+		sdk.WithMock(
+			s.mock,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(s.auth.UnaryAuthenticate),
+			grpc.WithStreamInterceptor(s.auth.StreamAuthenticate),
+		),
+		sdk.WithAuthenticator(s.quarterdeck.URL(), true),
 	)
-	assert.NoError(err, "could not connect mock")
-
+	assert.NoError(err, "could not create mocked ensign client")
 }
 
 func (s *sdkTestSuite) TearDownSuite() {

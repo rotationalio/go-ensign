@@ -23,12 +23,14 @@ type topicTestSuite struct {
 func (s *topicTestSuite) SetupSuite() {
 	assert := s.Assert()
 
-	// Create a new mock ensign server for each test (effectively resetting it)
+	// Create a new mock ensign server for testing
 	s.mock = mock.New(nil)
 
 	// Create an sdk client that can be used as the topic client
-	client := &sdk.Client{}
-	err := client.ConnectMock(s.mock)
+	client, err := sdk.New(
+		sdk.WithMock(s.mock),
+		sdk.WithAuthenticator("", true),
+	)
 	assert.NoError(err, "could not connect ensign client to mock")
 
 	// Create the cache for testing

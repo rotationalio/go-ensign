@@ -7,6 +7,7 @@ var (
 	ErrMissingClientID     = errors.New("invalid options: client ID is required")
 	ErrMissingClientSecret = errors.New("invalid options: client secret is required")
 	ErrMissingAuthURL      = errors.New("invalid options: auth url is required")
+	ErrMissingMock         = errors.New("invalid options: in testing mode a mock grpc server is required")
 	ErrTopicNameNotFound   = errors.New("topic name not found in project")
 	ErrStreamUninitialized = errors.New("could not initialize stream with server")
 )

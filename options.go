@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+
+	"github.com/rotationalio/go-ensign/mock"
+	"google.golang.org/grpc"
 )
 
 // Environment variables for configuring Ensign.
@@ -77,9 +80,13 @@ func WithLoadCredentials(path string) Option {
 // WithEnsignEndpoint allows you to specify an endpoint that is not the production
 // Ensign cloud. This is useful if you're running an Ensign node in CI or connecting to
 // a mock in local tests. Ensign developers may also use this to connect to staging.
-func WithEnsignEndpoint(endpoint string, insecure bool) Option {
+// If any gRPC dial options are specified, they override the default Ensign dial options
+// including the interceptors that perform authentication -- use only if you know what
+// you're doing and why!
+func WithEnsignEndpoint(endpoint string, insecure bool, opts ...grpc.DialOption) Option {
 	return func(o *Options) error {
 		o.Endpoint = endpoint
+		o.Dialing = opts
 		o.Insecure = insecure
 		return nil
 	}
@@ -105,6 +112,16 @@ func WithOptions(opts Options) Option {
 	}
 }
 
+// WithMock connects ensign to the specified mock ensign server for local testing.
+func WithMock(mock *mock.Ensign, opts ...grpc.DialOption) Option {
+	return func(o *Options) error {
+		o.Testing = true
+		o.Mock = mock
+		o.Dialing = opts
+		return nil
+	}
+}
+
 // Options specifies the client configuration for authenticating and connecting to
 // the Ensign service. The goal of the options struct is to be as minimal as possible.
 // If users set their credentials via the environment, they should not have to specify
@@ -121,6 +138,11 @@ type Options struct {
 	// The gRPC endpoint of the Ensign service; by default the EnsignEndpoint.
 	Endpoint string
 
+	// Dial options allows the user to specify gRPC connection options if necessary.
+	// NOTE: use with care, this overrides the default dialing options including the
+	// interceptors for authentication!
+	Dialing []grpc.DialOption
+
 	// The URL of the Quarterdeck system for authentication; by default AuthEndpoint.
 	AuthURL string
 
@@ -130,6 +152,12 @@ type Options struct {
 	// If true, the client will not login with the api credentials and will omit access
 	// tokens from Ensign RPCs. This is primarily used for testing against mocks.
 	NoAuthentication bool
+
+	// Mocking allows the client to be used in test code. Set testing mode to true and
+	// create a *mock.Ensign to add to the dialer. Any other dialer options can also be
+	// added to the mock for connection purposes.
+	Testing bool
+	Mock    *mock.Ensign
 }
 
 // NewOptions instantiates an options object for configuring Ensign, sets defaults and
@@ -155,6 +183,15 @@ func NewOptions(opts ...Option) (options Options, err error) {
 // then uses the default value as a last step.
 func (o *Options) Validate() (err error) {
 	o.setDefaults()
+
+	// If in testing mode, all we need is a mock object and nothing else.
+	if o.Testing {
+		if o.Mock == nil {
+			return ErrMissingMock
+		}
+		return nil
+	}
+
 	if o.Endpoint == "" {
 		return ErrMissingEndpoint
 	}
