@@ -16,7 +16,7 @@ import (
 
 const BufferSize = 128
 
-// Client manages the credentials and connection to the ensign server.
+// Client manages the credentials and connection to the Ensign server.
 type Client struct {
 	sync.RWMutex
 	opts  Options
@@ -31,13 +31,13 @@ type Client struct {
 type Publisher interface {
 	io.Closer
 	Errorer
-	Publish(topic string, events ...*api.Event)
+	Publish(topic string, events ...*Event)
 }
 
 type Subscriber interface {
 	io.Closer
 	Errorer
-	Subscribe() (<-chan *api.Event, error)
+	Subscribe() (<-chan *Event, error)
 	Ack(id []byte) error
 	Nack(id []byte, err error) error
 }
@@ -180,7 +180,7 @@ func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
 func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber, err error) {
 	sub := &subscriber{
 		send: make(chan *api.SubscribeRequest, BufferSize),
-		recv: make([]chan<- *api.Event, 0, 1),
+		recv: make([]chan<- *Event, 0, 1),
 		stop: make(chan struct{}, 1),
 		errc: make(chan error, 1),
 	}
