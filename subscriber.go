@@ -10,7 +10,7 @@ type subscriber struct {
 	sync.RWMutex
 	stream api.Ensign_SubscribeClient
 	send   chan *api.SubscribeRequest
-	recv   []chan<- *api.Event
+	recv   []chan<- *Event
 	stop   chan struct{}
 	wg     sync.WaitGroup
 	errc   chan error
@@ -18,8 +18,8 @@ type subscriber struct {
 
 var _ Subscriber = &subscriber{}
 
-func (c *subscriber) Subscribe() (<-chan *api.Event, error) {
-	sub := make(chan *api.Event, BufferSize)
+func (c *subscriber) Subscribe() (<-chan *Event, error) {
+	sub := make(chan *Event, BufferSize)
 	c.Lock()
 	defer c.Unlock()
 	c.recv = append(c.recv, sub)
@@ -102,18 +102,22 @@ func (c *subscriber) recver() {
 
 		// Fetch the event from the subscribe reply
 		// TODO: handle other message types such as close stream
-		var evt *api.Event
-		if wrapper := e.GetEvent(); evt != nil {
-			evt, _ = wrapper.Unwrap()
+		var wrapper *api.EventWrapper
+		if wrapper = e.GetEvent(); wrapper == nil {
+			continue
 		}
 
-		if evt == nil {
-			continue
+		// Convert the event into an API event
+		// TODO: handle the subscribe request channel
+		event := &Event{}
+		if _, err := event.fromPB(wrapper, subscription); err != nil {
+			// TODO: what to do about the error?
+			panic(err)
 		}
 
 		c.RLock()
 		for _, sub := range c.recv {
-			sub <- evt
+			sub <- event
 		}
 		c.RUnlock()
 	}

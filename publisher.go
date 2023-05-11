@@ -19,7 +19,7 @@ type publisher struct {
 
 var _ Publisher = &publisher{}
 
-func (c *publisher) Publish(topic string, events ...*api.Event) {
+func (c *publisher) Publish(topic string, events ...*Event) {
 	// TODO: handle topic name mapping and topic manager
 	// TODO: better error handling
 	topicID, _ := ulid.Parse(topic)
@@ -31,7 +31,7 @@ func (c *publisher) Publish(topic string, events ...*api.Event) {
 		}
 
 		// TODO: handle errors
-		env.Wrap(event)
+		env.Wrap(event.toPB())
 
 		c.send <- env
 	}
