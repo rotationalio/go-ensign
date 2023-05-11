@@ -48,6 +48,48 @@ type Event struct {
 	sub   chan<- *api.SubscribeRequest
 }
 
+type eventState uint8
+
+const (
+	initialized  eventState = iota // event has been created but hasn't been published
+	published                      // event has been published, awaiting ack from server
+	subscription                   // event has been received from subscription, awaiting ack from user
+	acked                          // event has been acked from user or server
+	nacked                         // event has been nacked from user or server
+)
+
+// Returns the event ID if the event has been published; otherwise returns nil.
+func (e *Event) ID() []byte {
+	if e.info != nil && len(e.info.Id) > 0 {
+		return e.info.Id
+	}
+	return nil
+}
+
+// Returns the topic ID that the event was published to if available; otherwise returns nil.
+func (e *Event) TopicID() []byte {
+	if e.info != nil && len(e.info.TopicId) > 0 {
+		return e.info.TopicId
+	}
+	return nil
+}
+
+// Returns the offset and epoch of the event if available, otherwise returns 0.
+func (e *Event) Offset() (offset uint64, epoch uint64) {
+	if e.info != nil {
+		return e.info.Offset, e.info.Epoch
+	}
+	return 0, 0
+}
+
+// Returns the committed timestamp if available.
+func (e *Event) Committed() time.Time {
+	if e.info != nil && e.info.Committed != nil {
+		return e.info.Committed.AsTime()
+	}
+	return time.Time{}
+}
+
 // Acked allows a user to check if an event published to an event stream has been
 // successfully received by the server.
 func (e *Event) Acked() (bool, error) {
@@ -82,6 +124,7 @@ func (e *Event) checkpub() {
 		switch msg := rep.Embed.(type) {
 		case *api.PublisherReply_Ack:
 			e.state = acked
+			e.info.Id = msg.Ack.Id
 			e.info.Committed = msg.Ack.Committed
 		case *api.PublisherReply_Nack:
 			e.state = nacked
@@ -121,6 +164,7 @@ func (e *Event) Ack() (bool, error) {
 			},
 		},
 	}
+	close(e.sub)
 
 	// TODO: what happens if the ack message cannot be sent?
 	e.state = acked
@@ -157,6 +201,7 @@ func (e *Event) Nack(code api.Nack_Code) (bool, error) {
 			},
 		},
 	}
+	close(e.sub)
 
 	// TODO: what happens if the ack message cannot be sent?
 	e.state = acked
@@ -247,10 +292,15 @@ func (e *Event) toPB() *api.Event {
 	}
 }
 
+// Returns the event wrapper which contains the API event info. Used for debugging.
+func (e *Event) Info() *api.EventWrapper {
+	return e.info
+}
+
 // Convert a protocol buffer event into this event.
-func (e *Event) fromPB(wrapper *api.EventWrapper, state eventState) (err error) {
+func (e *Event) fromPB(wrapper *api.EventWrapper, state eventState) (_ <-chan *api.SubscribeRequest, err error) {
 	if e.state != initialized {
-		return ErrOverwrite
+		return nil, ErrOverwrite
 	}
 
 	// Set info on the wrapper
@@ -258,8 +308,11 @@ func (e *Event) fromPB(wrapper *api.EventWrapper, state eventState) (err error) 
 
 	var event *api.Event
 	if event, err = wrapper.Unwrap(); err != nil {
-		return err
+		return nil, err
 	}
+
+	// Create channel for subscribe stream communication
+	sub := make(chan *api.SubscribeRequest, 1)
 
 	e.Data = event.Data
 	e.Metadata = Metadata(event.Metadata)
@@ -267,16 +320,7 @@ func (e *Event) fromPB(wrapper *api.EventWrapper, state eventState) (err error) 
 	e.Type = event.Type
 	e.Created = event.Created.AsTime()
 	e.state = state
+	e.sub = sub
 
-	return nil
+	return sub, nil
 }
-
-type eventState uint8
-
-const (
-	initialized  eventState = iota // event has been created but hasn't been published
-	published                      // event has been published, awaiting ack from server
-	subscription                   // event has been received from subscription, awaiting ack from user
-	acked                          // event has been acked from user or server
-	nacked                         // event has been nacked from user or server
-)

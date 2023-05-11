@@ -108,8 +108,12 @@ func (c *subscriber) recver() {
 		}
 
 		// Convert the event into an API event
+		// TODO: handle the subscribe request channel
 		event := &Event{}
-		event.fromPB(wrapper, subscription)
+		if _, err := event.fromPB(wrapper, subscription); err != nil {
+			// TODO: what to do about the error?
+			panic(err)
+		}
 
 		c.RLock()
 		for _, sub := range c.recv {
