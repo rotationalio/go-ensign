@@ -42,3 +42,55 @@ func TestEventWrapper(t *testing.T) {
 	require.EqualError(t, err, "event wrapper contains no event")
 	require.Empty(t, empty, "no data event should be zero-valued")
 }
+
+func TestType(t *testing.T) {
+	car := &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8}
+	require.Equal(t, "car v1.4.8", car.Version())
+
+	// Equality checking
+	testCases := []struct {
+		alpha  *api.Type
+		bravo  *api.Type
+		assert require.BoolAssertionFunc
+	}{
+		{
+			alpha:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			bravo:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			assert: require.True,
+		},
+		{
+			alpha:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			bravo:  &api.Type{Name: "Car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			assert: require.True,
+		},
+		{
+			alpha:  &api.Type{Name: "CAR", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			bravo:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			assert: require.True,
+		},
+		{
+			alpha:  &api.Type{Name: " car ", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			bravo:  &api.Type{Name: "car ", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			assert: require.True,
+		},
+		{
+			alpha:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			bravo:  &api.Type{Name: "car", MajorVersion: 2, MinorVersion: 4, PatchVersion: 8},
+			assert: require.False,
+		},
+		{
+			alpha:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			bravo:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 9, PatchVersion: 8},
+			assert: require.False,
+		},
+		{
+			alpha:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 8},
+			bravo:  &api.Type{Name: "car", MajorVersion: 1, MinorVersion: 4, PatchVersion: 0},
+			assert: require.False,
+		},
+	}
+
+	for i, tc := range testCases {
+		tc.assert(t, tc.alpha.Equals(tc.bravo), "test case %d failed", i)
+	}
+}

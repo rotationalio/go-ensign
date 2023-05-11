@@ -102,18 +102,14 @@ func (c *subscriber) recver() {
 
 		// Fetch the event from the subscribe reply
 		// TODO: handle other message types such as close stream
-		var evt *api.Event
-		if wrapper := e.GetEvent(); evt != nil {
-			evt, _ = wrapper.Unwrap()
-		}
-
-		if evt == nil {
+		var wrapper *api.EventWrapper
+		if wrapper = e.GetEvent(); wrapper == nil {
 			continue
 		}
 
 		// Convert the event into an API event
 		event := &Event{}
-		event.fromPB(evt)
+		event.fromPB(wrapper, subscription)
 
 		c.RLock()
 		for _, sub := range c.recv {
