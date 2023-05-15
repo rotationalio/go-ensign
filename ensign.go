@@ -3,18 +3,15 @@ package ensign
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"sync"
 
-	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"github.com/rotationalio/go-ensign/auth"
+	"github.com/rotationalio/go-ensign/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
-
-const BufferSize = 128
 
 // Client manages the credentials and connection to the Ensign server.
 type Client struct {
@@ -24,22 +21,7 @@ type Client struct {
 	api   api.EnsignClient
 	auth  *auth.Client
 	copts []grpc.CallOption
-}
-
-// Publisher is a low level interface for sending events to a topic or a group of topics
-// that have been defined in Ensign services.
-type Publisher interface {
-	io.Closer
-	Errorer
-	Publish(topic string, events ...*Event)
-}
-
-type Subscriber interface {
-	io.Closer
-	Errorer
-	Subscribe() (<-chan *Event, error)
-	Ack(id []byte) error
-	Nack(id []byte, err error) error
+	pub   stream.Publisher
 }
 
 func New(opts ...Option) (client *Client, err error) {
@@ -135,88 +117,6 @@ func (c *Client) Close() (err error) {
 
 func (c *Client) Status(ctx context.Context) (state *api.ServiceState, err error) {
 	return c.api.Status(ctx, &api.HealthCheck{}, c.copts...)
-}
-
-func (c *Client) Publish(ctx context.Context) (_ Publisher, err error) {
-	pub := &publisher{
-		send: make(chan *api.EventWrapper, BufferSize),
-		recv: make(chan *api.PublisherReply, BufferSize),
-		stop: make(chan struct{}, 1),
-		errc: make(chan error, 1),
-	}
-
-	// Connect to the stream and send the open stream request
-	if pub.stream, err = c.api.Publish(ctx, c.copts...); err != nil {
-		return nil, err
-	}
-
-	// TODO: should we send topics from the topic cache?
-	open := &api.OpenStream{
-		ClientId: ulid.Make().String(),
-	}
-
-	if err = pub.stream.Send(&api.PublisherRequest{Embed: &api.PublisherRequest_OpenStream{OpenStream: open}}); err != nil {
-		return nil, err
-	}
-
-	// TODO: handle the topic map returned from the server
-	var rep *api.PublisherReply
-	if rep, err = pub.stream.Recv(); err != nil {
-		return nil, err
-	}
-
-	if ready := rep.GetReady(); ready == nil {
-		return nil, ErrStreamUninitialized
-	}
-
-	// Start go routines
-	pub.wg.Add(2)
-	go pub.sender()
-	go pub.recver()
-
-	return pub, nil
-}
-
-func (c *Client) Subscribe(ctx context.Context, topics ...string) (_ Subscriber, err error) {
-	sub := &subscriber{
-		send: make(chan *api.SubscribeRequest, BufferSize),
-		recv: make([]chan<- *Event, 0, 1),
-		stop: make(chan struct{}, 1),
-		errc: make(chan error, 1),
-	}
-
-	// Connect to the stream and send stream policy information
-	if sub.stream, err = c.api.Subscribe(ctx, c.copts...); err != nil {
-		return nil, err
-	}
-
-	// TODO: map topic names to IDs
-	// TODO: handle consumer groups here
-	open := &api.Subscription{
-		ClientId: ulid.Make().String(),
-		Topics:   topics,
-	}
-
-	if err = sub.stream.Send(&api.SubscribeRequest{Embed: &api.SubscribeRequest_Subscription{Subscription: open}}); err != nil {
-		return nil, err
-	}
-
-	// TODO: handle the topic map returned from the server
-	var rep *api.SubscribeReply
-	if rep, err = sub.stream.Recv(); err != nil {
-		return nil, err
-	}
-
-	if ready := rep.GetReady(); ready == nil {
-		return nil, ErrStreamUninitialized
-	}
-
-	// Start go routines
-	sub.wg.Add(2)
-	go sub.sender()
-	go sub.recver()
-
-	return sub, nil
 }
 
 // WithCallOptions configures the next client Call to use the specified call options,

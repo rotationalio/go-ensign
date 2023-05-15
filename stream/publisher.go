@@ -1,4 +1,4 @@
-package ensign
+package stream
 
 import (
 	"io"
@@ -19,7 +19,7 @@ type publisher struct {
 
 var _ Publisher = &publisher{}
 
-func (c *publisher) Publish(topic string, events ...*Event) {
+func (c *publisher) Publish(topic string, events ...*api.Event) {
 	// TODO: handle topic name mapping and topic manager
 	// TODO: better error handling
 	topicID, _ := ulid.Parse(topic)
@@ -31,7 +31,7 @@ func (c *publisher) Publish(topic string, events ...*Event) {
 		}
 
 		// TODO: handle errors
-		env.Wrap(event.toPB())
+		env.Wrap(event)
 
 		c.send <- env
 	}
