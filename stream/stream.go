@@ -1,3 +1,6 @@
+/*
+Package stream provides
+*/
 package stream
 
 import (

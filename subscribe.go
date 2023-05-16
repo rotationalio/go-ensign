@@ -45,15 +45,6 @@ func (c *Client) Subscribe(ctx context.Context, topics ...string) (sub *Subscrip
 	return sub, nil
 }
 
-func (c *Client) Publish(topic string, events ...*Event) (err error) {
-	if c.pub == nil {
-		if c.pub, err = stream.Publish(c.api, context.TODO(), c.copts...); err != nil {
-			return err
-		}
-	}
-
-	for _, event := range events {
-		c.pub.Publish(topic, event.toPB())
-	}
-	return nil
+func (c *Subscription) Close() error {
+	return c.stream.Close()
 }
