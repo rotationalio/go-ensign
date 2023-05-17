@@ -4,24 +4,31 @@ import (
 	"context"
 	"crypto/tls"
 	"sync"
+	"time"
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"github.com/rotationalio/go-ensign/auth"
 	"github.com/rotationalio/go-ensign/stream"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+)
+
+const (
+	ReconnectTick = 750 * time.Millisecond
 )
 
 // Client manages the credentials and connection to the Ensign server.
 type Client struct {
 	sync.RWMutex
-	opts  Options
-	cc    *grpc.ClientConn
-	api   api.EnsignClient
-	auth  *auth.Client
-	copts []grpc.CallOption
-	pub   stream.Publisher
+	opts    Options
+	cc      *grpc.ClientConn
+	api     api.EnsignClient
+	auth    *auth.Client
+	copts   []grpc.CallOption
+	pub     *stream.Publisher
+	openPub sync.Once
 }
 
 func New(opts ...Option) (client *Client, err error) {
@@ -146,4 +153,47 @@ func (c *Client) EnsignClient() api.EnsignClient {
 
 func (c *Client) QuarterdeckClient() *auth.Client {
 	return c.auth
+}
+
+// Conn state returns the connectivity state of the underlying gRPC connection.
+//
+// Experimental: this method relies on an experimental gRPC API that could be changed.
+func (c *Client) ConnState() connectivity.State {
+	return c.cc.GetState()
+}
+
+// Wait for the state of the underlying gRPC connection to change from the source state
+// (not to the source state) or until the context times out. Returns true if the source
+// state has changed to another state.
+//
+// Experimental: this method relies on an experimental gRPC API that could be changed.
+func (c *Client) WaitForConnStateChange(ctx context.Context, sourceState connectivity.State) bool {
+	return c.cc.WaitForStateChange(ctx, sourceState)
+}
+
+// WaitForReconnect checks if the connection has been reconnected periodically and
+// retruns true when the connection is ready. If the context deadline timesout before
+// a connection can be re-established, false is returned.
+//
+// Experimental: this method relies on an experimental gRPC API that could be changed.
+func (c *Client) WaitForReconnect(ctx context.Context) bool {
+	ticker := time.NewTicker(ReconnectTick)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Connect causes all subchannels in the ClientConn to attempt to connect if
+			// the channel is idle. Does not wait for the connection attempts to begin.
+			c.cc.Connect()
+
+			// Check if the connection is ready
+			if c.cc.GetState() == connectivity.Ready {
+				return true
+			}
+		case <-ctx.Done():
+			return false
+		}
+	}
+
 }

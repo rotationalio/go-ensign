@@ -298,7 +298,7 @@ func (e *Event) Info() *api.EventWrapper {
 }
 
 // Convert a protocol buffer event into this event.
-func (e *Event) fromPB(wrapper *api.EventWrapper, state eventState) (_ <-chan *api.SubscribeRequest, err error) {
+func (e *Event) FromPB(wrapper *api.EventWrapper, state eventState) (_ <-chan *api.SubscribeRequest, err error) {
 	if e.state != initialized {
 		return nil, ErrOverwrite
 	}
