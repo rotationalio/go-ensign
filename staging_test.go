@@ -124,7 +124,7 @@ func (s *stagingTestSuite) TestEnsignIntegration() {
 	require.True(found, "could not identify topic in topic list")
 
 	// Create a subscriber to listen for events on
-	sub, err := s.client.Subscribe(context.Background(), topicID)
+	sub, err := s.client.Subscribe(topicID)
 	require.NoError(err, "could not subscribe to topic")
 
 	var wg sync.WaitGroup

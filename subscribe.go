@@ -2,50 +2,53 @@ package ensign
 
 import (
 	"context"
-	"errors"
 
+	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"github.com/rotationalio/go-ensign/stream"
+	"google.golang.org/grpc"
 )
 
 type Subscription struct {
 	C      <-chan *Event
-	stream stream.Subscriber
+	events <-chan *api.EventWrapper
+	stream *stream.Subscriber
 }
 
-func (c *Client) Subscribe(ctx context.Context, topics ...string) (sub *Subscription, err error) {
-	return nil, errors.New("not implemented")
-	// 	events := make(chan *Event, 1)
-	// 	sub = &Subscription{C: events}
+func (c *Client) Subscribe(topics ...string) (sub *Subscription, err error) {
+	// Create the internal subscription stream
+	sub = &Subscription{}
+	if sub.events, sub.stream, err = stream.NewSubscriber(c, topics, c.copts...); err != nil {
+		return nil, err
+	}
 
-	// 	if sub.stream, err = stream.Subscribe(c.api, ctx, topics, c.copts...); err != nil {
-	// 		return nil, err
-	// 	}
+	// Create the user events channel
+	out := make(chan *Event, 1)
+	sub.C = out
 
-	// 	var in <-chan *api.EventWrapper
-	// 	if in, err = sub.stream.Subscribe(); err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	// TODO: map topic names to IDs
-	// 	// TODO: handle consumer groups
-	// 	// TODO: handle events coming from the subscription stream
-	// 	go func(out chan<- *Event, in <-chan *api.EventWrapper) {
-	// 		for wrapper := range in {
-	// 			// Convert the event into an API event
-	// 			// TODO: handle the subscribe request channel
-	// 			event := &Event{}
-	// 			if _, err := event.fromPB(wrapper, subscription); err != nil {
-	// 				// TODO: what to do about the error?
-	// 				panic(err)
-	// 			}
-
-	// 			out <- event
-	// 		}
-	// 	}(events, in)
-
-	// 	return sub, nil
+	// Run the subscription background go routine
+	go sub.eventHandler(out)
+	return sub, nil
 }
 
 func (c *Subscription) Close() error {
 	return c.stream.Close()
+}
+
+func (c *Subscription) eventHandler(out chan<- *Event) {
+	for wrapper := range c.events {
+		// Convert the event into an API event
+		event := &Event{}
+		if err := event.fromPB(wrapper, subscription); err != nil {
+			// TODO: what to do about the error?
+			panic(err)
+		}
+
+		// Attach the stream to send acks/nacks back
+		event.sub = c.stream
+		out <- event
+	}
+}
+
+func (c *Client) SubscribeStream(ctx context.Context, opts ...grpc.CallOption) (api.Ensign_SubscribeClient, error) {
+	return c.api.Subscribe(ctx, opts...)
 }

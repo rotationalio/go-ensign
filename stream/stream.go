@@ -5,7 +5,6 @@ package stream
 
 import (
 	"context"
-	"io"
 	"time"
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
@@ -28,15 +27,7 @@ type PublishClient interface {
 	PublishStream(context.Context, ...grpc.CallOption) (api.Ensign_PublishClient, error)
 }
 
-type Subscriber interface {
-	io.Closer
-	Errorer
-	Subscribe() (<-chan *api.EventWrapper, error)
-	Ack(id []byte) error
-	Nack(id []byte, err error) error
-}
-
 type SubscribeClient interface {
 	ConnectionObserver
-	Subscribe(context.Context, ...grpc.CallOption) (api.Ensign_SubscribeClient, error)
+	SubscribeStream(context.Context, ...grpc.CallOption) (api.Ensign_SubscribeClient, error)
 }

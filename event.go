@@ -9,6 +9,7 @@ import (
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	mimetype "github.com/rotationalio/go-ensign/mimetype/v1beta1"
+	"github.com/rotationalio/go-ensign/stream"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -45,7 +46,7 @@ type Event struct {
 	ctx   context.Context
 	err   error
 	pub   <-chan *api.PublisherReply
-	sub   chan<- *api.SubscribeRequest
+	sub   *stream.Subscriber
 }
 
 type eventState uint8
@@ -156,17 +157,11 @@ func (e *Event) Ack() (bool, error) {
 		return false, ErrCannotAck
 	}
 
-	// Send the ack on the sub channel to be sent back to the Ensign server?
-	e.sub <- &api.SubscribeRequest{
-		Embed: &api.SubscribeRequest_Ack{
-			Ack: &api.Ack{
-				Id: e.info.Id,
-			},
-		},
+	// Send the ack on the sub stream to the Ensign server
+	if e.err = e.sub.Ack(&api.Ack{Id: e.info.Id}); e.err != nil {
+		return false, e.err
 	}
-	close(e.sub)
 
-	// TODO: what happens if the ack message cannot be sent?
 	e.state = acked
 	return true, nil
 }
@@ -192,19 +187,12 @@ func (e *Event) Nack(code api.Nack_Code) (bool, error) {
 		return false, ErrCannotAck
 	}
 
-	// Send the ack on the sub channel to be sent back to the Ensign server?
-	e.sub <- &api.SubscribeRequest{
-		Embed: &api.SubscribeRequest_Nack{
-			Nack: &api.Nack{
-				Id:   e.info.Id,
-				Code: code,
-			},
-		},
+	// Send the nack on the sub channel to the Ensign server?
+	if e.err = e.sub.Nack(&api.Nack{Id: e.info.Id, Code: code}); e.err != nil {
+		return false, e.err
 	}
-	close(e.sub)
 
-	// TODO: what happens if the ack message cannot be sent?
-	e.state = acked
+	e.state = nacked
 	return true, nil
 }
 
@@ -298,9 +286,9 @@ func (e *Event) Info() *api.EventWrapper {
 }
 
 // Convert a protocol buffer event into this event.
-func (e *Event) FromPB(wrapper *api.EventWrapper, state eventState) (_ <-chan *api.SubscribeRequest, err error) {
+func (e *Event) fromPB(wrapper *api.EventWrapper, state eventState) (err error) {
 	if e.state != initialized {
-		return nil, ErrOverwrite
+		return ErrOverwrite
 	}
 
 	// Set info on the wrapper
@@ -308,11 +296,8 @@ func (e *Event) FromPB(wrapper *api.EventWrapper, state eventState) (_ <-chan *a
 
 	var event *api.Event
 	if event, err = wrapper.Unwrap(); err != nil {
-		return nil, err
+		return err
 	}
-
-	// Create channel for subscribe stream communication
-	sub := make(chan *api.SubscribeRequest, 1)
 
 	e.Data = event.Data
 	e.Metadata = Metadata(event.Metadata)
@@ -320,7 +305,6 @@ func (e *Event) FromPB(wrapper *api.EventWrapper, state eventState) (_ <-chan *a
 	e.Type = event.Type
 	e.Created = event.Created.AsTime()
 	e.state = state
-	e.sub = sub
 
-	return sub, nil
+	return nil
 }
