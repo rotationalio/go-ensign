@@ -14,7 +14,6 @@ var (
 	ErrMissingAuthURL      = errors.New("invalid options: auth url is required")
 	ErrMissingMock         = errors.New("invalid options: in testing mode a mock grpc server is required")
 	ErrTopicNameNotFound   = errors.New("topic name not found in project")
-	ErrStreamUninitialized = errors.New("could not initialize stream with server")
 	ErrCannotAck           = errors.New("cannot ack or nack an event not received from subscribe")
 	ErrOverwrite           = errors.New("this operation would overwrite existing event data")
 )
