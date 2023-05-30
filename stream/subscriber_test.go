@@ -115,11 +115,54 @@ func (s *subscriberTestSuite) TestSubscriberFixedEvents() {
 
 	// Send and recv events (expect that the send buffer is 64)
 	for i := 0; i < 10; i++ {
-		handler.Send <- mock.NewEvent()
+		handler.Send <- mock.NewEventWrapper()
 		evt := <-C
 		require.NoError(sub.Ack(&api.Ack{Id: evt.Id}))
 	}
 
 	require.NoError(sub.Close())
 	require.NoError(sub.Err())
+}
+
+func (s *subscriberTestSuite) TestSubscriberAcksNacks() {
+	// When the stream is opened, send a topic map back.
+	fixture := map[string]ulid.ULID{
+		"testing.123": ulid.MustParse("01H1PA4FA9G2Y79Z5FC36CWYYJ"),
+		"example.456": ulid.MustParse("01H1PA4P7C6VT5KZCXH56H1XHS"),
+	}
+	var acks, nacks uint64
+
+	// Setup the server mock with a subscribe handler that uses the topics fixture
+	handler := mock.NewSubscribeHandler()
+	defer handler.Shutdown()
+
+	handler.UseTopicMap(fixture)
+	handler.OnAck = func(*api.Ack) error { acks++; return nil }
+	handler.OnNack = func(*api.Nack) error { nacks++; return nil }
+	s.mock.server.OnSubscribe = handler.OnSubscribe
+
+	require := s.Require()
+	C, sub, err := stream.NewSubscriber(s.mock, nil)
+	require.NoError(err, "could not open subscriber")
+
+	// Send and recv events (expect that the send buffer is 64)
+	for i := 0; i < 10; i++ {
+		handler.Send <- mock.NewEventWrapper()
+		evt := <-C
+
+		if i < 5 {
+			require.NoError(sub.Ack(&api.Ack{Id: evt.Id}))
+		} else {
+			require.NoError(sub.Nack(&api.Nack{Id: evt.Id, Code: api.Nack_DELIVER_AGAIN_NOT_ME}))
+		}
+	}
+
+	require.NoError(sub.Close())
+	require.NoError(sub.Err())
+	require.Equal(uint64(5), acks)
+	require.Equal(uint64(5), nacks)
+}
+
+func (s *subscriberTestSuite) TestSubscriberReconnect() {
+	s.T().Skip("TODO: implement subscriber reconnect test")
 }

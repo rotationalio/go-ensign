@@ -71,7 +71,7 @@ func (s *SubscribeHandler) OnSubscribe(stream api.Ensign_SubscribeServer) (err e
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
-		return status.Error(codes.Aborted, "stream canceled before initialization")
+		return status.Errorf(codes.Aborted, "stream canceled before initialization: %s", err)
 	}
 
 	// The first message should be a subscription message; if so use the OnInitialize
@@ -88,7 +88,7 @@ func (s *SubscribeHandler) OnSubscribe(stream api.Ensign_SubscribeServer) (err e
 		}
 
 		if err = stream.Send(&api.SubscribeReply{Embed: &api.SubscribeReply_Ready{Ready: reply}}); err != nil {
-			return status.Error(codes.Canceled, "could not send stream ready message")
+			return status.Errorf(codes.Canceled, "could not send stream ready message: %s", err)
 		}
 	default:
 		return status.Error(codes.FailedPrecondition, "expected a subscription to initialize the stream")
@@ -119,7 +119,7 @@ func (s *SubscribeHandler) OnSubscribe(stream api.Ensign_SubscribeServer) (err e
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
-			return status.Error(codes.Aborted, "subscribe stream aborted")
+			return status.Errorf(codes.Aborted, "subscribe stream aborted: %s", err)
 		}
 
 		switch req := msg.Embed.(type) {

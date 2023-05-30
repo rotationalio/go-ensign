@@ -17,10 +17,15 @@ var defaultFactory *EventFactory = &EventFactory{
 	Region: region.Region_STG_LKE_US_EAST_1A,
 }
 
-// NewEvent returns an event wrapper with random data inside. It is a quick method to
+// NewEventWrapper returns an event wrapper with random data inside. It is a quick method to
 // create an event for the default "testing.123" topic.
-func NewEvent() *api.EventWrapper {
+func NewEventWrapper() *api.EventWrapper {
 	return defaultFactory.Make()
+}
+
+// NewEvent returns an event with random data
+func NewEvent() *api.Event {
+	return defaultFactory.Event()
 }
 
 // EventFactory creates random events with standard defaults.
@@ -65,6 +70,14 @@ func (f *EventFactory) Make() *api.EventWrapper {
 		Committed: timestamppb.New(committed),
 	}
 
+	e := f.Event()
+	e.Created = timestamppb.New(created)
+	env.Wrap(e)
+
+	return env
+}
+
+func (f *EventFactory) Event() *api.Event {
 	e := &api.Event{
 		Data:     make([]byte, 256),
 		Mimetype: mimetype.ApplicationOctetStream,
@@ -75,11 +88,9 @@ func (f *EventFactory) Make() *api.EventWrapper {
 			Name:         "random",
 			MajorVersion: 1,
 		},
-		Created: timestamppb.New(created),
+		Created: timestamppb.Now(),
 	}
 
 	rand.Read(e.Data)
-	env.Wrap(e)
-
-	return env
+	return e
 }
