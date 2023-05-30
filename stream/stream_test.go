@@ -6,9 +6,12 @@ import (
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	"github.com/rotationalio/go-ensign/mock"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 // MockConnectionObserver implements ConnectionObserver, PublishClient, and
@@ -72,4 +75,16 @@ func (c *MockConnectionObserver) PublishStream(ctx context.Context, opts ...grpc
 
 func (c *MockConnectionObserver) SubscribeStream(ctx context.Context, opts ...grpc.CallOption) (api.Ensign_SubscribeClient, error) {
 	return c.client.Subscribe(ctx, opts...)
+}
+
+func CheckStatusError(require *require.Assertions, err error, code codes.Code, message string, msgAndArgs ...interface{}) {
+	require.Error(err, msgAndArgs...)
+
+	serr, ok := status.FromError(err)
+	require.True(ok, msgAndArgs...)
+
+	require.Equal(code, serr.Code(), msgAndArgs...)
+	if message != "" {
+		require.Equal(message, serr.Message(), msgAndArgs...)
+	}
 }

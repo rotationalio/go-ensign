@@ -191,12 +191,9 @@ func (p *Publisher) start() {
 // waits for a stream ready response from the server. If it fails to open the stream or
 // the user is unauthenticated an error is returned.
 func (p *Publisher) openStream() (err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), ReconnectTimeout)
-	defer cancel()
-
 	p.smu.Lock()
 	defer p.smu.Unlock()
-	if p.stream, err = p.client.PublishStream(ctx, p.copts...); err != nil {
+	if p.stream, err = p.client.PublishStream(context.Background(), p.copts...); err != nil {
 		return err
 	}
 

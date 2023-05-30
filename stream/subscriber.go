@@ -197,12 +197,9 @@ func (c *Subscriber) start() {
 // and waits until it receives the stream ready response from the server. If it fails
 // to open the stream or the subscription cannot be established an error is returned.
 func (c *Subscriber) openStream() (err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), ReconnectTimeout)
-	defer cancel()
-
 	c.smu.Lock()
 	defer c.smu.Unlock()
-	if c.stream, err = c.client.SubscribeStream(ctx, c.copts...); err != nil {
+	if c.stream, err = c.client.SubscribeStream(context.Background(), c.copts...); err != nil {
 		return err
 	}
 

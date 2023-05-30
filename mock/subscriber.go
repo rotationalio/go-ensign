@@ -24,7 +24,7 @@ type SubscribeHandler struct {
 }
 
 func NewSubscribeHandler() *SubscribeHandler {
-	events := make(chan *api.EventWrapper, 1)
+	events := make(chan *api.EventWrapper, 64)
 	return &SubscribeHandler{
 		Send:   events,
 		events: events,
