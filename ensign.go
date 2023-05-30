@@ -195,5 +195,4 @@ func (c *Client) WaitForReconnect(ctx context.Context) bool {
 			return false
 		}
 	}
-
 }
