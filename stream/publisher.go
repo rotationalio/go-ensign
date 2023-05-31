@@ -31,6 +31,7 @@ type Publisher struct {
 	wg       *sync.WaitGroup          // reusable wait group to wait until sender/receiver are down
 	fmu      sync.RWMutex             // guards updates to the fatal error
 	fatal    error                    // if the publisher has fatally errored and cannot reconnect
+	pmu      sync.Mutex               // guards updates to the pending map
 	pending  map[ulid.ULID]pubreply   // track acks/nacks from the publisher
 	topics   map[string]ulid.ULID     // maps topic names to topic IDs from the server
 	serverID string                   // the server this publisher is connected to
@@ -109,7 +110,9 @@ func (p *Publisher) Publish(topic string, event *api.Event) (_ <-chan *api.Publi
 
 	// Create ack and nack channels and return
 	reply := make(chan *api.PublisherReply, 1)
+	p.pmu.Lock()
 	p.pending[localID] = pubreply(reply)
+	p.pmu.Unlock()
 
 	return reply, nil
 }
@@ -191,12 +194,9 @@ func (p *Publisher) start() {
 // waits for a stream ready response from the server. If it fails to open the stream or
 // the user is unauthenticated an error is returned.
 func (p *Publisher) openStream() (err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), ReconnectTimeout)
-	defer cancel()
-
 	p.smu.Lock()
 	defer p.smu.Unlock()
-	if p.stream, err = p.client.PublishStream(ctx, p.copts...); err != nil {
+	if p.stream, err = p.client.PublishStream(context.Background(), p.copts...); err != nil {
 		return err
 	}
 
@@ -282,11 +282,13 @@ func (p *Publisher) receiver() {
 				panic(err)
 			}
 
+			p.pmu.Lock()
 			if pending, ok := p.pending[localID]; ok {
 				pending <- in
 				close(pending)
 				delete(p.pending, localID)
 			}
+			p.pmu.Unlock()
 
 		case *api.PublisherReply_Nack:
 			var localID ulid.ULID
@@ -295,11 +297,13 @@ func (p *Publisher) receiver() {
 				panic(err)
 			}
 
+			p.pmu.Lock()
 			if pending, ok := p.pending[localID]; ok {
 				pending <- in
 				close(pending)
 				delete(p.pending, localID)
 			}
+			p.pmu.Unlock()
 
 		case *api.PublisherReply_CloseStream:
 			// TODO: handle close stream and logging for close stream
