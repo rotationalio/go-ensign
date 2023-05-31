@@ -1,7 +1,9 @@
 package stream_test
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
@@ -137,8 +139,8 @@ func (s *subscriberTestSuite) TestSubscriberAcksNacks() {
 	defer handler.Shutdown()
 
 	handler.UseTopicMap(fixture)
-	handler.OnAck = func(*api.Ack) error { acks++; return nil }
-	handler.OnNack = func(*api.Nack) error { nacks++; return nil }
+	handler.OnAck = func(*api.Ack) error { atomic.AddUint64(&acks, 1); return nil }
+	handler.OnNack = func(*api.Nack) error { atomic.AddUint64(&nacks, 1); return nil }
 	s.mock.server.OnSubscribe = handler.OnSubscribe
 
 	require := s.Require()
@@ -159,8 +161,11 @@ func (s *subscriberTestSuite) TestSubscriberAcksNacks() {
 
 	require.NoError(sub.Close())
 	require.NoError(sub.Err())
-	require.Equal(uint64(5), acks)
-	require.Equal(uint64(5), nacks)
+
+	time.Sleep(50 * time.Millisecond)
+
+	require.Equal(uint64(5), atomic.LoadUint64(&acks))
+	require.Equal(uint64(5), atomic.LoadUint64(&nacks))
 }
 
 func (s *subscriberTestSuite) TestSubscriberReconnect() {
