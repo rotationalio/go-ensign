@@ -162,8 +162,7 @@ func (c *Subscriber) start() {
 	defer c.wg.Done()
 
 	// Start a receiver channel; it is assumed that openStream has already been called.
-	c.wg.Add(1)
-	go c.receiver()
+	go c.receiver(c.stream)
 
 	// Maintain the subscribe stream connection
 	for {
@@ -182,8 +181,7 @@ func (c *Subscriber) start() {
 			}
 
 			// Restart the receiver, which should have been stopped when we got the down signal.
-			c.wg.Add(1)
-			go c.receiver()
+			go c.receiver(c.stream)
 
 		case <-c.stop:
 			return
@@ -247,22 +245,12 @@ func (c *Subscriber) reconnect() error {
 // channel. It is this routine's responsibility to detect if the stream is down on an
 // error by recv. If so, the routine quits and sends a signal to the start routine to
 // reconnect. Note that if the events buffer is full, this routine will block forever.
-func (c *Subscriber) receiver() {
-	defer c.wg.Done()
+func (c *Subscriber) receiver(stream api.Ensign_SubscribeClient) {
 	for {
-		// use an rlock to make sure the currently active stream is accessed
-		c.smu.RLock()
-		if c.stream == nil {
-			panic("subscriber receiver running when stream is not open")
-		}
-
-		// Fetch the next event from the server or the error for handling
 		in, err := c.stream.Recv()
-		c.smu.RUnlock()
-
 		if err != nil {
 			// Assume a clean shutdown when error is EOF, stop go routine
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 				return
 			}
 

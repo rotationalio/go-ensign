@@ -164,6 +164,7 @@ func (s *stagingTestSuite) TestEnsignIntegration() {
 
 			err := s.client.Publish(topicID, event)
 			assert.NoError(err, "could not publish event")
+			nsent++
 		}
 
 		event := &ensign.Event{
@@ -174,6 +175,7 @@ func (s *stagingTestSuite) TestEnsignIntegration() {
 		event.Metadata["done"] = "true"
 		err := s.client.Publish(topicID, event)
 		assert.NoError(err, "could not publish done event")
+		nsent++
 	}()
 
 	wg.Wait()
