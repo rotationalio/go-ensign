@@ -98,7 +98,7 @@ func (s *publisherTestSuite) TestPublisherTopicNames() {
 		}
 
 		event := mock.NewEvent()
-		C, err := pub.Publish(topic, event)
+		_, C, err := pub.Publish(topic, event)
 		require.NoError(err, "could not publish event with topic name")
 		rep := <-C
 		ack := rep.GetAck()
@@ -157,12 +157,12 @@ func (s *publisherTestSuite) TestCannotResolveTopicID() {
 	require.NoError(err, "could not connect to publisher")
 
 	// Could not resolve topic name
-	C, err := pub.Publish("notatopic", mock.NewEvent())
+	_, C, err := pub.Publish("notatopic", mock.NewEvent())
 	require.Nil(C)
 	require.ErrorIs(err, stream.ErrResolveTopic)
 
 	// Nack ULID
-	C, err = pub.Publish(ulid.Make().String(), mock.NewEvent())
+	_, C, err = pub.Publish(ulid.Make().String(), mock.NewEvent())
 	require.NoError(err, "expected to be able to publish any ulid")
 	rep := <-C
 	nack := rep.GetNack()
@@ -196,7 +196,7 @@ func (s *publisherTestSuite) TestPublisherTopicIDs() {
 		}
 
 		event := mock.NewEvent()
-		C, err := pub.Publish(topic, event)
+		_, C, err := pub.Publish(topic, event)
 		require.NoError(err, "could not publish event with topic ID")
 		rep := <-C
 		ack := rep.GetAck()

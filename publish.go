@@ -21,9 +21,13 @@ func (c *Client) Publish(topic string, events ...*Event) (err error) {
 
 	// Attempt to send all events to the server, stopping on the first error.
 	for _, event := range events {
-		if event.pub, err = c.pub.Publish(topic, event.toPB()); err != nil {
+		// Publish the event and collect the event info and reply channel.
+		if event.info, event.pub, err = c.pub.Publish(topic, event.Proto()); err != nil {
 			return err
 		}
+
+		// Ensure the event state is set to published.
+		event.state = published
 	}
 	return nil
 }

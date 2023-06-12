@@ -9,7 +9,6 @@ import (
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	mimetype "github.com/rotationalio/go-ensign/mimetype/v1beta1"
-	"github.com/rotationalio/go-ensign/stream"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -46,7 +45,17 @@ type Event struct {
 	ctx   context.Context
 	err   error
 	pub   <-chan *api.PublisherReply
-	sub   *stream.Subscriber
+	sub   Acknowledger
+}
+
+// Acknowledger allows consumers to send acks/nacks back to the server when they have
+// successfully processed an event. An ack means that the event was processed and the
+// consumer group offset can move on, while a nack means there was a local error and the
+// nack code instructs the server how to handle the event. The subscriber implements
+// this interface, but this can be mocked for testing events.
+type Acknowledger interface {
+	Ack(*api.Ack) error
+	Nack(*api.Nack) error
 }
 
 type eventState uint8
@@ -71,6 +80,16 @@ func (e *Event) ID() []byte {
 func (e *Event) TopicID() []byte {
 	if e.info != nil && len(e.info.TopicId) > 0 {
 		return e.info.TopicId
+	}
+	return nil
+}
+
+// Returns the topic ID that the event was published to if available; otherwise returns
+// nil. This method is primarily for testing and debugging purposes; users should use
+// the metadata to store application-specific ID material.
+func (e *Event) LocalID() []byte {
+	if e.info != nil && len(e.info.LocalId) > 0 {
+		return e.info.LocalId
 	}
 	return nil
 }
@@ -270,7 +289,7 @@ func (e *Event) Equals(o *Event) bool {
 }
 
 // Convert an event into a protocol buffer event.
-func (e *Event) toPB() *api.Event {
+func (e *Event) Proto() *api.Event {
 	return &api.Event{
 		Data:     e.Data,
 		Metadata: map[string]string(e.Metadata),
@@ -307,4 +326,22 @@ func (e *Event) fromPB(wrapper *api.EventWrapper, state eventState) (err error) 
 	e.state = state
 
 	return nil
+}
+
+// Creates a new outgoing event to be published. This method is generally used by tests
+// to create mock events with the acked/nacked channels listening for a response from
+// the publisher stream.
+func NewOutgoingEvent(e *api.EventWrapper, pub <-chan *api.PublisherReply) *Event {
+	event := &Event{pub: pub}
+	event.fromPB(e, published)
+	return event
+}
+
+// Creates a new incoming event as though it were from a subscription. This method is
+// generally used by tests to crate mock events with an acknowledger for ensuring that
+// an event is correctly acked/nacked to the consumer stream.
+func NewIncomingEvent(e *api.EventWrapper, sub Acknowledger) *Event {
+	event := &Event{sub: sub}
+	event.fromPB(e, subscription)
+	return event
 }
