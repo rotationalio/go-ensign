@@ -94,3 +94,49 @@ func TestType(t *testing.T) {
 		tc.assert(t, tc.alpha.Equals(tc.bravo), "test case %d failed", i)
 	}
 }
+
+func TestTypeSemver(t *testing.T) {
+	testCases := []struct {
+		name     string
+		vers     string
+		expected string
+		semver   string
+	}{
+		{"GameStarted", "1.4.2", "GameStarted v1.4.2", "1.4.2"},
+		{"GameStarted", "0.0.4", "GameStarted v0.0.4", "0.0.4"},
+		{"GameStarted", "1.2.3", "GameStarted v1.2.3", "1.2.3"},
+		{"GameStarted", "10.20.30", "GameStarted v10.20.30", "10.20.30"},
+		{"GameStarted", "1.1.2-prerelease+meta", "GameStarted v1.1.2", "1.1.2"},
+		{"GameStarted", "1.1.2+meta-valid", "GameStarted v1.1.2", "1.1.2"},
+		{"GameStarted", "1.1.2-alpha", "GameStarted v1.1.2", "1.1.2"},
+		{"GameStarted", "1.1.2-beta", "GameStarted v1.1.2", "1.1.2"},
+		{"GameStarted", "1.1.2-alpha.1", "GameStarted v1.1.2", "1.1.2"},
+		{"GameStarted", "1.1.2-rc.1+build.123", "GameStarted v1.1.2", "1.1.2"},
+		{"Foo", "999999999.999999999.999999999", "Foo v999999999.999999999.999999999", "999999999.999999999.999999999"},
+	}
+
+	for i, tc := range testCases {
+		eventType := &api.Type{Name: tc.name}
+
+		err := eventType.ParseSemver(tc.vers)
+		require.NoError(t, err, "could not parse semver for test case %d", i)
+
+		require.Equal(t, tc.expected, eventType.Version(), "mismatched version in test case %d", i)
+		require.Equal(t, tc.semver, eventType.Semver(), "mismatched semver in test case %d", i)
+	}
+}
+
+func TestTypeBadSemver(t *testing.T) {
+	testCases := []string{
+		"1.0", "a.b.c", "", "not a version", "2", "1.2.3.4",
+		"99999999999999999999999.999999999999999999.99999999999999999",
+		"1.999999999999999999.99999999999999999",
+		"1.1.99999999999999999",
+	}
+
+	for _, tc := range testCases {
+		eventType := &api.Type{Name: "Bad version"}
+		err := eventType.ParseSemver(tc)
+		require.Error(t, err, "expected semver parsing error for %q", tc)
+	}
+}
