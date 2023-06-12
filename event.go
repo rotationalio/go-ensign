@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 	mimetype "github.com/rotationalio/go-ensign/mimetype/v1beta1"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -68,20 +69,65 @@ const (
 	nacked                         // event has been nacked from user or server
 )
 
-// Returns the event ID if the event has been published; otherwise returns nil.
-func (e *Event) ID() []byte {
+const (
+	rlidSize    = 10
+	encodedSize = 16
+	encoding    = "0123456789abcdefghjkmnpqrstvwxyz"
+)
+
+// Returns the event ID if the event has been published; otherwise returns empty string.
+func (e *Event) ID() string {
 	if e.info != nil && len(e.info.Id) > 0 {
-		return e.info.Id
+		// TODO: this is a port of the RLID encoding; is this the best way to encode?
+		if len(e.info.Id) == rlidSize {
+			dst := make([]byte, encodedSize)
+			dst[0] = encoding[(e.info.Id[0]&248)>>3]
+			dst[1] = encoding[((e.info.Id[0]&7)<<2)|((e.info.Id[1]&192)>>6)]
+			dst[2] = encoding[(e.info.Id[1]&62)>>1]
+			dst[3] = encoding[((e.info.Id[1]&1)<<4)|((e.info.Id[2]&240)>>4)]
+			dst[4] = encoding[((e.info.Id[2]&15)<<1)|((e.info.Id[3]&128)>>7)]
+			dst[5] = encoding[(e.info.Id[3]&124)>>2]
+			dst[6] = encoding[((e.info.Id[3]&3)<<3)|((e.info.Id[4]&224)>>5)]
+			dst[7] = encoding[e.info.Id[4]&31]
+			dst[8] = encoding[(e.info.Id[5]&248)>>3]
+			dst[9] = encoding[((e.info.Id[5]&7)<<2)|((e.info.Id[6]&192)>>6)]
+			dst[10] = encoding[(e.info.Id[6]&62)>>1]
+			dst[11] = encoding[((e.info.Id[6]&1)<<4)|((e.info.Id[7]&240)>>4)]
+			dst[12] = encoding[((e.info.Id[7]&15)<<1)|((e.info.Id[8]&128)>>7)]
+			dst[13] = encoding[(e.info.Id[8]&124)>>2]
+			dst[14] = encoding[((e.info.Id[8]&3)<<3)|((e.info.Id[9]&224)>>5)]
+			dst[15] = encoding[e.info.Id[9]&31]
+			return string(dst)
+		}
+		return fmt.Sprintf("%X", e.info.Id)
 	}
-	return nil
+	return ""
 }
 
-// Returns the topic ID that the event was published to if available; otherwise returns nil.
-func (e *Event) TopicID() []byte {
+// Returns the topic ID that the event was published to if available; otherwise returns
+// an empty string. The TopicID is a ULID, the ULID can be parsed without going through
+// a string representation using the TopicULID method. If the TopicID cannot be parsed
+// as a ULID then a hexadecimal representation of the ID is returned. See the error from
+// TopicULID for more info about what went wrong.
+func (e *Event) TopicID() string {
 	if e.info != nil && len(e.info.TopicId) > 0 {
-		return e.info.TopicId
+		topicID, err := e.TopicULID()
+		if err != nil {
+			return fmt.Sprintf("%X", e.info.TopicId)
+		}
+		return topicID.String()
 	}
-	return nil
+	return ""
+}
+
+// Returns the topic ULID that the event was published to if available, otherwise
+// returns an error if there is no info, the topic ID is nil, or was unparseable.
+func (e *Event) TopicULID() (topicID ulid.ULID, err error) {
+	if e.info != nil && len(e.info.TopicId) > 0 {
+		err = topicID.UnmarshalBinary(e.info.TopicId)
+		return topicID, err
+	}
+	return topicID, ErrNoTopicID
 }
 
 // Returns the topic ID that the event was published to if available; otherwise returns
