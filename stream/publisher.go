@@ -74,14 +74,14 @@ func NewPublisher(client PublishClient, opts ...grpc.CallOption) (*Publisher, er
 // topic, which must be in the topic map returned by the server at the start of the
 // publish stream. This method also assigns the topic a localID and returns a channel
 // for the user to consume an ack/nack on to check that the event has been published.
-func (p *Publisher) Publish(topic string, event *api.Event) (_ <-chan *api.PublisherReply, err error) {
+func (p *Publisher) Publish(topic string, event *api.Event) (_ *api.EventWrapper, _ <-chan *api.PublisherReply, err error) {
 	// Create a local ID for acks and nacks
 	localID := ulid.Make()
 
 	// Attempt to determine the topicID from the string
 	var topicID ulid.ULID
 	if topicID, err = p.resolveTopic(topic); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create the event wrapper for the event
@@ -91,7 +91,7 @@ func (p *Publisher) Publish(topic string, event *api.Event) (_ <-chan *api.Publi
 	}
 
 	if err = env.Wrap(event); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Attempt to send the message to the publisher
@@ -105,7 +105,7 @@ func (p *Publisher) Publish(topic string, event *api.Event) (_ <-chan *api.Publi
 
 	// Handle any send errors by returning them to the user
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create ack and nack channels and return
@@ -114,7 +114,7 @@ func (p *Publisher) Publish(topic string, event *api.Event) (_ <-chan *api.Publi
 	p.pending[localID] = pubreply(reply)
 	p.pmu.Unlock()
 
-	return reply, nil
+	return env, reply, nil
 }
 
 // Close the publisher gracefully, once closed, the publisher cannot be restarted.

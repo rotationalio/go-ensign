@@ -16,6 +16,7 @@ var (
 	ErrTopicNameNotFound   = errors.New("topic name not found in project")
 	ErrCannotAck           = errors.New("cannot ack or nack an event not received from subscribe")
 	ErrOverwrite           = errors.New("this operation would overwrite existing event data")
+	ErrNoTopicID           = errors.New("topic id is not available on event")
 )
 
 type Errorer interface {
