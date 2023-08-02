@@ -16,10 +16,19 @@ import (
 )
 
 const (
+	// Specifies the wait period before checking if a gRPC connection has been
+	// established while waiting for a ready connection.
 	ReconnectTick = 750 * time.Millisecond
+
+	// The default page size for paginated gRPC responses.
+	DefaultPageSize = uint32(100)
 )
 
-// Client manages the credentials and connection to the Ensign server.
+// Client manages the credentials and connection to the Ensign server. The New() method
+// creates a configured client and the Client methods are used to interact with the
+// Ensign ecosystem, handling authentication, publish and subscribe streams, and
+// interactions with topics. The Ensign client is the top-level method for creating Go
+// applications that leverage data flows.
 type Client struct {
 	sync.RWMutex
 	opts    Options
@@ -31,6 +40,14 @@ type Client struct {
 	openPub sync.Once
 }
 
+// Create a new Ensign client, specifying connection and authentication options if
+// necessary. Ensign expects that credentials are stored in the environment, set using
+// the $ENSIGN_CLIENT_ID and $ENSIGN_CLIENT_SECRET environment variables. They can also
+// be set manually using the WithCredentials or WithLoadCredentials options. You can
+// also specify a mock ensign server to test your code that uses Ensign via WithMock.
+// This function returns an error if the client is unable to dial ensign; however,
+// authentication errors and connectivity checks may require an Ensign RPC call. You can
+// use the Ping() method to check if your connection credentials to Ensign is correct.
 func New(opts ...Option) (client *Client, err error) {
 	client = &Client{}
 	if client.opts, err = NewOptions(opts...); err != nil {
@@ -106,6 +123,11 @@ func (c *Client) connectMock() (err error) {
 	return nil
 }
 
+// Close the connection to the current Ensign server. Closing the connection may block
+// if streaming RPCs such as publish or subscribe are running. It is useful to Close the
+// Ensign connection when you're done to free up any resources in long running programs,
+// however, once closed, the Client cannot be reconnected and a new Client must be
+// initialized to re-establish the connection.
 func (c *Client) Close() (err error) {
 	c.Lock()
 	defer func() {
@@ -122,6 +144,10 @@ func (c *Client) Close() (err error) {
 	return nil
 }
 
+// Status performs an unauthenticated check to the Ensign service to determine the state
+// of the service. This may be useful in debugging connectivity issues.
+//
+// TODO: update the return of status to include Quarterdeck status.
 func (c *Client) Status(ctx context.Context) (state *api.ServiceState, err error) {
 	return c.api.Status(ctx, &api.HealthCheck{}, c.copts...)
 }
@@ -147,10 +173,14 @@ func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
 	return client
 }
 
+// Returns the underlying gRPC client for Ensign; useful for testing or advanced calls.
+// It is not recommended to use this client for production code.
 func (c *Client) EnsignClient() api.EnsignClient {
 	return c.api
 }
 
+// Returns the underlying Quarterdeck authentication client; useful for testing or
+// advanced calls. It is not recommended to use this client for production code.
 func (c *Client) QuarterdeckClient() *auth.Client {
 	return c.auth
 }
@@ -172,7 +202,7 @@ func (c *Client) WaitForConnStateChange(ctx context.Context, sourceState connect
 }
 
 // WaitForReconnect checks if the connection has been reconnected periodically and
-// retruns true when the connection is ready. If the context deadline timesout before
+// returns true when the connection is ready. If the context deadline times out before
 // a connection can be re-established, false is returned.
 //
 // Experimental: this method relies on an experimental gRPC API that could be changed.

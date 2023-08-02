@@ -9,14 +9,26 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Environment variables for configuring Ensign.
+// Environment variables for configuring Ensign. Unless otherwise specified in the
+// options, Ensign will try to configure your client from the environment.
 const (
-	EnvEndpoint     = "ENSIGN_ENDPOINT"
+	// APIKeys you receive when creating a project on https://rotational.app will return
+	// a Client ID and Client Secret. These should be specified in the environment with
+	// the following environment variables. You cannot connect to Ensign without these
+	// APIKeys. Note that APIKeys only allow connections to one project in Ensign. In
+	// the future, Ensign will be able to support multiple key credentials to access
+	// multiple projects.
 	EnvClientID     = "ENSIGN_CLIENT_ID"
 	EnvClientSecret = "ENSIGN_CLIENT_SECRET"
-	EnvInsecure     = "ENSIGN_INSECURE"
-	EnvAuthURL      = "ENSIGN_AUTH_URL"
-	EnvNoAuth       = "ENSIGN_NO_AUTHENTICATION"
+
+	// The following environment variables allow you to connect to another Ensign
+	// service. These are primarily used by the Rotational team to connect to develop
+	// and staging Ensign environments. However, if you have an Enterprise deployment of
+	// Ensign, you may need to specify these alternative connection details.
+	EnvEndpoint = "ENSIGN_ENDPOINT"
+	EnvInsecure = "ENSIGN_INSECURE"
+	EnvAuthURL  = "ENSIGN_AUTH_URL"
+	EnvNoAuth   = "ENSIGN_NO_AUTHENTICATION"
 )
 
 // Default connection endpoints to the production Ensign cluster.
