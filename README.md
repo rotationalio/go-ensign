@@ -152,8 +152,79 @@ func checkTopic() (err error) {
 
 The cache also prevents repeated calls to Ensign, so you can use the `Exists` and `Get` method instead of `client.TopicExists` and `client.TopicID`.
 
-### Quick Topics API Reference
+## Events
 
+The [`Event`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Event) data structure is how you can create data to send to Ensign and your downstream subscribers, and how you will receive data from Ensign. At it's core, an event is an application-defined datagram that you can use to create totally ordered data flows.
+
+There are two pieces user-specified information that are part of the event, the `Metadata`: user-defined key/value pairs of strings that can be used for querying and indexing events, and the `Data`, generic data that you can use that define the event.
+
+To parse and work with events, there are two pieces of information: the `Mimetype`, e.g. `application/json`, which helps you determine how to parse the `Data` and the `Type`, a user defined schema that can be used to validate or verify the event once parsed. For more on types and mimetypes, see the [Ensign documentation](https://ensign.rotational.dev).
+
+### Publishing Events
+
+To publish an event to a topic, you create an event, and then use the clients, `Publish` method as follows:
+
+```go
+var client *ensign.Client
+
+func publishMessages() {
+	for i := 0; i < 100; i++ {
+		// Create a simple event
+		msg := &ensign.Event{Data: []byte(fmt.Sprintf("event no. %d", i+1))}}
+
+		// Publish the event
+		if err := client.Publish("example-topic", msg); err != nil {
+			panic(err)
+		}
+
+		// Determine if the event was published or not
+		if _, err := msg.Nacked(); err != nil {
+			panic(err)
+		}
+
+		time.Sleep(time.Second)
+	}
+}
+```
+
+When publishing events you can check if the event was acked (sucessfully published) or nacked (there was an error during publishing) using the `Acked()` and `Nacked()` methods of the `Event` that you created.
+
+### Subscribing
+
+To subscribe to events on a topic or topics, you can create an object with a channel to receive events on.
+
+```go
+var client *ensign.Client
+
+func subscribeEvents() {
+	sub, err := client.Subscribe("example-topic-a", "example-topic-b")
+	if err != nil {
+		panic(err)
+	}
+
+	for event := range sub.C {
+		if err := handleEvent(event); err != nil {
+			event.Nack(api.Nack_UNPROCESSED)
+		} else {
+			event.Ack()
+		}
+	}
+}
+
+func handleEvent(event *ensign.Event) error {
+	// handle each event as it comes in.
+}
+```
+
+It is important to let Ensign know if the event was processed successfully using the `Ack` and `Nack` methods on the event -- this will help Ensign determine if it needs to resend the event or not.
+
+## Quick API Reference
+
+- [`New`](https://pkg.go.dev/github.com/rotationalio/go-ensign#New)]: create a new Ensign client with credentials from the environment or from a file.
+- [`Event`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Event): the event data structure for publishing and subscribing.
+- [`client.Publish`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Client.Publish): publish one or more events to a specified topic.
+- [`client.Subscribe`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Client.Subscribe): create a `Subscription` with a channel to receive incoming events on.
+- [`Subscription`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Subscription): the object return from a `Subscribe` operation, with an events channel, `C` to listen for events on.
 - [`client.TopicExists`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Client.TopicExists): check if a topic with the specified name exists in the project.
 - [`client.CreateTopic`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Client.CreateTopic): create a topic with the specified name in the project.
 - [`client.ListTopics`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Client.ListTopics): list all the topics in the project.
