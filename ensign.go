@@ -16,10 +16,19 @@ import (
 )
 
 const (
+	// Specifies the wait period before checking if a gRPC connection has been
+	// established while waiting for a ready connection.
 	ReconnectTick = 750 * time.Millisecond
+
+	// The default page size for paginated gRPC responses.
+	DefaultPageSize = uint32(100)
 )
 
-// Client manages the credentials and connection to the Ensign server.
+// Client manages the credentials and connection to the Ensign server. The New() method
+// creates a configured client and the Client methods are used to interact with the
+// Ensign ecosystem, handling authentication, publish and subscribe streams, and
+// interactions with topics. The Ensign client is the top-level method for creating Go
+// applications that leverage data flows.
 type Client struct {
 	sync.RWMutex
 	opts    Options
@@ -31,6 +40,14 @@ type Client struct {
 	openPub sync.Once
 }
 
+// Create a new Ensign client, specifying connection and authentication options if
+// necessary. Ensign expects that credentials are stored in the environment, set using
+// the $ENSIGN_CLIENT_ID and $ENSIGN_CLIENT_SECRET environment variables. They can also
+// be set manually using the WithCredentials or WithLoadCredentials options. You can
+// also specify a mock ensign server to test your code that uses Ensign via WithMock.
+// This function returns an error if the client is unable to dial ensign; however,
+// authentication errors and connectivity checks may require an Ensign RPC call. You can
+// use the Ping() method to check if your connection credentials to Ensign is correct.
 func New(opts ...Option) (client *Client, err error) {
 	client = &Client{}
 	if client.opts, err = NewOptions(opts...); err != nil {

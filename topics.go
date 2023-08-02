@@ -10,8 +10,6 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-const DefaultPageSize uint32 = 100
-
 // Check if a topic with the specified name exists in the project or not.
 func (c *Client) TopicExists(ctx context.Context, topicName string) (_ bool, err error) {
 	var info *api.TopicExistsInfo

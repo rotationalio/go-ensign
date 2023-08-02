@@ -86,7 +86,8 @@ func parseUint32(s string) (uint32, error) {
 	return uint32(i), nil
 }
 
-// Equals treats the name as case-insensitive.
+// Equals treats the name as case-insensitive and determines if the name and version are
+// the same for the current type and the other type.
 func (t *Type) Equals(o *Type) bool {
 	tname := strings.TrimSpace(strings.ToLower(t.Name))
 	oname := strings.TrimSpace(strings.ToLower(o.Name))

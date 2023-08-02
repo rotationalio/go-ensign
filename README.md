@@ -46,7 +46,16 @@ func main() {
 }
 ```
 
-You can also set the `$ENSIGN_CLIENT_ID` and `$ENSIGN_CLIENT_SECRET` environment variables so that you can instantiate the Client without specifying credentials in code. Finally, if you downloaded the `client.json` file from the app; you can load it by specifying the path to the JSON file:
+You can also set the `$ENSIGN_CLIENT_ID` and `$ENSIGN_CLIENT_SECRET` environment
+variables so that you can instantiate the Client without specifying credentials in code.
+
+```go
+// Assumes that $ENSIGN_CLIENT_ID and $ENSIGN_CLIENT_SECRET are set
+client, err := ensign.New()
+```
+
+Finally, if you downloaded the `client.json` file from the app; you can load it by specifying the path to the JSON file:
+
 
 ```go
 client, err := ensign.New(ensign.WithLoadCredentials("path/to/client.json"))
