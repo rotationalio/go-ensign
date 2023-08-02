@@ -10,7 +10,9 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-// Check if a topic with the specified name exists in the project or not.
+// Check if a topic with the specified name exists in the project or not. The returned
+// bool indicates if the topic exists; if an error is returned, then exists will be
+// false. This method returns an gRPC error if the RPC cannot be successfully completed.
 func (c *Client) TopicExists(ctx context.Context, topicName string) (_ bool, err error) {
 	var info *api.TopicExistsInfo
 	if info, err = c.api.TopicExists(ctx, &api.TopicName{Name: topicName}, c.copts...); err != nil {
@@ -20,6 +22,7 @@ func (c *Client) TopicExists(ctx context.Context, topicName string) (_ bool, err
 }
 
 // Create topic with the specified name and return the topic ID if there was no error.
+// This method returns a gRPC error if the RPC cannot be successfully completed.
 func (c *Client) CreateTopic(ctx context.Context, topic string) (_ string, err error) {
 	var reply *api.Topic
 	if reply, err = c.api.CreateTopic(ctx, &api.Topic{Name: topic}, c.copts...); err != nil {
@@ -36,6 +39,10 @@ func (c *Client) CreateTopic(ctx context.Context, topic string) (_ string, err e
 	return topicID.String(), nil
 }
 
+// ListTopics fetches all the topics that the client has access to in the project that
+// the API keys are defined for. The ListTopics RPC is a paginated RPC, and this method
+// continues to fetch all pages before returning a list of a results; fully
+// materializing the list of topics in memory.
 func (c *Client) ListTopics(ctx context.Context) (topics []*api.Topic, err error) {
 	// TODO: return an iterator rather than materializing all of the topics
 	topics = make([]*api.Topic, 0)
@@ -66,11 +73,13 @@ func (c *Client) ListTopics(ctx context.Context) (topics []*api.Topic, err error
 }
 
 // Archive a topic marking it as read-only.
+// NOTE: this client method is not implemented yet.
 func (c *Client) ArchiveTopic(ctx context.Context, topicID string) (err error) {
 	return errors.New("not implemented yet")
 }
 
 // Destroy a topic removing it and all of its data.
+// NOTE: this client method is not implemented yet.
 func (c *Client) DestroyTopic(ctx context.Context, topicID string) (err error) {
 	return errors.New("not implemented yet")
 }

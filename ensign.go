@@ -123,6 +123,11 @@ func (c *Client) connectMock() (err error) {
 	return nil
 }
 
+// Close the connection to the current Ensign server. Closing the connection may block
+// if streaming RPCs such as publish or subscribe are running. It is useful to Close the
+// Ensign connection when you're done to free up any resources in long running programs,
+// however, once closed, the Client cannot be reconnected and a new Client must be
+// initialized to re-establish the connection.
 func (c *Client) Close() (err error) {
 	c.Lock()
 	defer func() {
@@ -139,6 +144,10 @@ func (c *Client) Close() (err error) {
 	return nil
 }
 
+// Status performs an unauthenticated check to the Ensign service to determine the state
+// of the service. This may be useful in debugging connectivity issues.
+//
+// TODO: update the return of status to include Quarterdeck status.
 func (c *Client) Status(ctx context.Context) (state *api.ServiceState, err error) {
 	return c.api.Status(ctx, &api.HealthCheck{}, c.copts...)
 }
@@ -164,10 +173,14 @@ func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
 	return client
 }
 
+// Returns the underlying gRPC client for Ensign; useful for testing or advanced calls.
+// It is not recommended to use this client for production code.
 func (c *Client) EnsignClient() api.EnsignClient {
 	return c.api
 }
 
+// Returns the underlying Quarterdeck authentication client; useful for testing or
+// advanced calls. It is not recommended to use this client for production code.
 func (c *Client) QuarterdeckClient() *auth.Client {
 	return c.auth
 }
