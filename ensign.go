@@ -202,7 +202,7 @@ func (c *Client) WaitForConnStateChange(ctx context.Context, sourceState connect
 }
 
 // WaitForReconnect checks if the connection has been reconnected periodically and
-// retruns true when the connection is ready. If the context deadline timesout before
+// returns true when the connection is ready. If the context deadline times out before
 // a connection can be re-established, false is returned.
 //
 // Experimental: this method relies on an experimental gRPC API that could be changed.
