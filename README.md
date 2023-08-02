@@ -220,7 +220,7 @@ It is important to let Ensign know if the event was processed successfully using
 
 ## Quick API Reference
 
-- [`New`](https://pkg.go.dev/github.com/rotationalio/go-ensign#New)]: create a new Ensign client with credentials from the environment or from a file.
+- [`New`](https://pkg.go.dev/github.com/rotationalio/go-ensign#New): create a new Ensign client with credentials from the environment or from a file.
 - [`Event`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Event): the event data structure for publishing and subscribing.
 - [`client.Publish`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Client.Publish): publish one or more events to a specified topic.
 - [`client.Subscribe`](https://pkg.go.dev/github.com/rotationalio/go-ensign#Client.Subscribe): create a `Subscription` with a channel to receive incoming events on.
