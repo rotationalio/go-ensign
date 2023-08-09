@@ -1,6 +1,7 @@
 package mock
 
 import (
+	crand "crypto/rand"
 	"math/rand"
 	"sync"
 	"time"
@@ -91,6 +92,6 @@ func (f *EventFactory) Event() *api.Event {
 		Created: timestamppb.Now(),
 	}
 
-	rand.Read(e.Data)
+	crand.Read(e.Data)
 	return e
 }

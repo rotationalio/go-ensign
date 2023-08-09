@@ -2,7 +2,7 @@ package ensign_test
 
 import (
 	"bytes"
-	"math/rand"
+	"crypto/rand"
 	"testing"
 	"time"
 
