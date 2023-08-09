@@ -2,28 +2,55 @@ package ensign
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
 )
 
 // QueryCursor exposes event results from an EnSQL query with familiar database cursor
-// semantics.
+// semantics. Note that the cursor is not thread safe and should only be used from a
+// single thread.
 type QueryCursor struct {
 	stream api.Ensign_EnSQLClient
+	result *Event
 }
 
-// read the next event from the stream and return it to the caller.
+// NewQueryCursor creates a new query cursor that reads from the specified stream.
+func NewQueryCursor(stream api.Ensign_EnSQLClient) (cursor *QueryCursor, err error) {
+	cursor = &QueryCursor{
+		stream: stream,
+	}
+
+	// Fetch the first event to catch any errors.
+	if cursor.result, err = cursor.FetchOne(); err != nil {
+		return nil, err
+	}
+
+	return cursor, nil
+}
+
+// read fetches the next event from the stream and returns the previous result to the
+// caller. If there are no more events then a nil event is returned.
 func (c *QueryCursor) read() (event *Event, err error) {
 	if c.stream == nil {
 		return nil, ErrCursorClosed
 	}
 
+	// If there's a cached result then return it
+	if c.result != nil {
+		event = c.result
+		c.result = nil
+		return event, nil
+	}
+
+	// Read the next event and cache it
 	var wrapper *api.EventWrapper
 	if wrapper, err = c.stream.Recv(); err != nil {
-		// Return nil if the stream is closed
+		// If thre's no more data on the stream then close the stream
 		if err == io.EOF {
+			if err = c.Close(); err != nil {
+				return nil, err
+			}
 			return nil, nil
 		}
 
@@ -83,6 +110,10 @@ func (i *QueryCursor) FetchAll() ([]*Event, error) {
 
 // Close the cursor, which closes the underlying stream.
 func (i *QueryCursor) Close() (err error) {
+	if i.stream == nil {
+		return nil
+	}
+
 	if err = i.stream.CloseSend(); err != nil {
 		return err
 	}
@@ -101,14 +132,20 @@ func (c *Client) EnSQL(ctx context.Context, query *api.Query) (cursor *QueryCurs
 	}
 
 	// Create the stream by sending the query request to the server.
-	cursor = &QueryCursor{}
-	if cursor.stream, err = c.api.EnSQL(ctx, query, c.copts...); err != nil {
+	var stream api.Ensign_EnSQLClient
+	if stream, err = c.api.EnSQL(ctx, query, c.copts...); err != nil {
 		return nil, err
 	}
-	return cursor, nil
+
+	return NewQueryCursor(stream)
 }
 
-// Explain returns the query plan for the specified query.
+// Explain returns the query plan for the specified query, including the expected
+// number of results and errors that might be returned.
 func (c *Client) Explain(ctx context.Context, query *api.Query) (plan *api.QueryExplanation, err error) {
-	return nil, errors.New("not implemented yet")
+	if query.Query == "" {
+		return nil, ErrEmptyQuery
+	}
+
+	return c.api.Explain(ctx, query, c.copts...)
 }
