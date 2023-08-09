@@ -131,6 +131,7 @@ func (s *sdkTestSuite) TestEnSQL() {
 
 	// After close the cursor returns an error
 	cursor, err = s.client.EnSQL(context.Background(), query)
+	require.NoError(err, "expected no error for valid query")
 	require.NoError(cursor.Close(), "expected no error closing cursor")
 	_, err = cursor.FetchOne()
 	require.ErrorIs(err, ensign.ErrCursorClosed, "expected error fetching one event after close")
