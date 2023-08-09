@@ -65,6 +65,7 @@ const (
 	initialized  eventState = iota // event has been created but hasn't been published
 	published                      // event has been published, awaiting ack from server
 	subscription                   // event has been received from subscription, awaiting ack from user
+	query                          // event has been received from query, ack/nack is not applicable
 	acked                          // event has been acked from user or server
 	nacked                         // event has been nacked from user or server
 )
@@ -218,7 +219,7 @@ func (e *Event) Ack() (bool, error) {
 		return true, e.err
 	case nacked:
 		return false, e.err
-	case initialized, published:
+	case initialized, published, query:
 		return false, ErrCannotAck
 	}
 
@@ -248,7 +249,7 @@ func (e *Event) Nack(code api.Nack_Code) (bool, error) {
 		return true, e.err
 	case acked:
 		return false, e.err
-	case initialized, published:
+	case initialized, published, query:
 		return false, ErrCannotAck
 	}
 

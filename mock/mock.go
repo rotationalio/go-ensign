@@ -25,6 +25,7 @@ import (
 const (
 	PublishRPC       = "/ensign.v1beta1.Ensign/Publish"
 	SubscribeRPC     = "/ensign.v1beta1.Ensign/Subscribe"
+	EnSQLRPC         = "/ensign.v1beta1.Ensign/EnSQL"
 	ListTopicsRPC    = "/ensign.v1beta1.Ensign/ListTopics"
 	CreateTopicRPC   = "/ensign.v1beta1.Ensign/CreateTopic"
 	RetrieveTopicRPC = "/ensign.v1beta1.Ensign/RetrieveTopic"
@@ -70,6 +71,7 @@ type Ensign struct {
 	Calls           map[string]int
 	OnPublish       func(api.Ensign_PublishServer) error
 	OnSubscribe     func(api.Ensign_SubscribeServer) error
+	OnEnSQL         func(*api.Query, api.Ensign_EnSQLServer) error
 	OnListTopics    func(context.Context, *api.PageInfo) (*api.TopicsPage, error)
 	OnCreateTopic   func(context.Context, *api.Topic) (*api.Topic, error)
 	OnRetrieveTopic func(context.Context, *api.Topic) (*api.Topic, error)
@@ -117,6 +119,7 @@ func (s *Ensign) Reset() {
 
 	s.OnPublish = nil
 	s.OnSubscribe = nil
+	s.OnEnSQL = nil
 	s.OnListTopics = nil
 	s.OnCreateTopic = nil
 	s.OnRetrieveTopic = nil
@@ -141,7 +144,7 @@ func (s *Ensign) UseFixture(rpc, path string) (err error) {
 	}
 
 	switch rpc {
-	case PublishRPC, SubscribeRPC:
+	case PublishRPC, SubscribeRPC, EnSQLRPC:
 		return errors.New("cannot use fixture for a streaming RPC (yet)")
 	case ListTopicsRPC:
 		out := &api.TopicsPage{}
@@ -224,6 +227,10 @@ func (s *Ensign) UseError(rpc string, code codes.Code, msg string) error {
 		s.OnSubscribe = func(api.Ensign_SubscribeServer) error {
 			return status.Error(code, msg)
 		}
+	case EnSQLRPC:
+		s.OnEnSQL = func(*api.Query, api.Ensign_EnSQLServer) error {
+			return status.Error(code, msg)
+		}
 	case ListTopicsRPC:
 		s.OnListTopics = func(context.Context, *api.PageInfo) (*api.TopicsPage, error) {
 			return nil, status.Error(code, msg)
@@ -274,6 +281,14 @@ func (s *Ensign) Subscribe(stream api.Ensign_SubscribeServer) error {
 	s.incrCalls(SubscribeRPC)
 	if s.OnSubscribe != nil {
 		return s.OnSubscribe(stream)
+	}
+	return ErrUnavailable
+}
+
+func (s *Ensign) EnSQL(in *api.Query, stream api.Ensign_EnSQLServer) error {
+	s.incrCalls(EnSQLRPC)
+	if s.OnEnSQL != nil {
+		return s.OnEnSQL(in, stream)
 	}
 	return ErrUnavailable
 }

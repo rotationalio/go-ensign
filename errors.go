@@ -20,6 +20,8 @@ var (
 	ErrCannotAck           = errors.New("cannot ack or nack an event not received from subscribe")
 	ErrOverwrite           = errors.New("this operation would overwrite existing event data")
 	ErrNoTopicID           = errors.New("topic id is not available on event")
+	ErrEmptyQuery          = errors.New("query cannot be empty")
+	ErrCursorClosed        = errors.New("cursor is closed")
 )
 
 // A Nack from the server on a publish stream indicates that the event was not
