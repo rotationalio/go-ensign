@@ -3,6 +3,7 @@ package ensign
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"sync"
 	"time"
 
@@ -22,6 +23,9 @@ const (
 
 	// The default page size for paginated gRPC responses.
 	DefaultPageSize = uint32(100)
+
+	// The Go SDK user agent format string.
+	UserAgent = "Ensign Go SDK/v%d"
 )
 
 // Client manages the credentials and connection to the Ensign server. The New() method
@@ -79,7 +83,7 @@ func New(opts ...Option) (client *Client, err error) {
 
 func (c *Client) connect() (err error) {
 	// Fetch the dialing options from the ensign config.
-	opts := make([]grpc.DialOption, 0, 3)
+	opts := make([]grpc.DialOption, 0, 4)
 	opts = append(opts, c.opts.Dialing...)
 
 	// If no dialing opts were specified create default dialing options.
@@ -102,6 +106,9 @@ func (c *Client) connect() (err error) {
 			opts = append(opts, grpc.WithUnaryInterceptor(c.auth.UnaryAuthenticate))
 			opts = append(opts, grpc.WithStreamInterceptor(c.auth.StreamAuthenticate))
 		}
+
+		// Add the user agent to the options
+		opts = append(opts, grpc.WithUserAgent(fmt.Sprintf(UserAgent, VersionMajor)))
 	}
 
 	if c.cc, err = grpc.Dial(c.opts.Endpoint, opts...); err != nil {
