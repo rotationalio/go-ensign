@@ -136,7 +136,7 @@ func (s *publisherTestSuite) TestCannotResolveTopicID() {
 			out.Embed = &api.PublisherReply_Nack{
 				Nack: &api.Nack{
 					Id:   in.LocalId,
-					Code: api.Nack_TOPIC_UKNOWN,
+					Code: api.Nack_TOPIC_UNKNOWN,
 				},
 			}
 		} else {
@@ -167,7 +167,7 @@ func (s *publisherTestSuite) TestCannotResolveTopicID() {
 	rep := <-C
 	nack := rep.GetNack()
 	require.NotNil(nack, "expected a nack")
-	require.Equal(api.Nack_TOPIC_UKNOWN, nack.Code)
+	require.Equal(api.Nack_TOPIC_UNKNOWN, nack.Code)
 
 	require.NoError(pub.Close())
 }
