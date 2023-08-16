@@ -96,7 +96,7 @@ func (s *SubscribeHandler) OnSubscribe(stream api.Ensign_SubscribeServer) (err e
 
 	// Once initialized launch a go routine to send messages that come in from the send channel
 	go func() {
-		stats := &api.CloseStream{Consumers: 1}
+		stats := &api.CloseStream{}
 		topics := make(map[string]struct{})
 
 		for event := range s.events {
