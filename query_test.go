@@ -124,7 +124,7 @@ func (s *sdkTestSuite) TestEnSQL() {
 
 	// Cursor is now at the end, next event should be nil
 	event, err := cursor.FetchOne()
-	require.NoError(err, "expected no error when no more results")
+	require.ErrorIs(err, ensign.ErrNoRows, "expected no rows error when no more results")
 	require.Nil(event, "expected no more events to be returned")
 	_, err = cursor.FetchOne()
 	require.ErrorIs(err, ensign.ErrCursorClosed, "expected cursor to be closed")

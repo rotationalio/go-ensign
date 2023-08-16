@@ -5,6 +5,8 @@ import (
 	"io"
 
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // QueryCursor exposes event results from an EnSQL query with familiar database cursor
@@ -46,20 +48,17 @@ func (c *QueryCursor) read() (event *Event, err error) {
 	// Read the next event and cache it
 	var wrapper *api.EventWrapper
 	if wrapper, err = c.stream.Recv(); err != nil {
-		// If thre's no more data on the stream then close the stream
-		if err == io.EOF {
-			if err = c.Close(); err != nil {
-				return nil, err
-			}
+		if streamClosed(err) {
+			c.Close()
 			return nil, nil
 		}
-
 		return nil, err
 	}
 
 	// Convert the event into an API event
 	event = &Event{}
 	if err = event.fromPB(wrapper, query); err != nil {
+		c.Close()
 		return nil, err
 	}
 
@@ -68,43 +67,60 @@ func (c *QueryCursor) read() (event *Event, err error) {
 
 // FetchOne returns the next query result. If there are no more results then nil is
 // returned.
-func (i *QueryCursor) FetchOne() (*Event, error) {
-	return i.read()
+func (i *QueryCursor) FetchOne() (event *Event, err error) {
+	if event, err = i.read(); err != nil {
+		return nil, err
+	}
+	if event == nil {
+		return nil, ErrNoRows
+	}
+	return event, nil
 }
 
 // FetchMany returns the next n query results. If there are less than n results
 // remaining then all the remaining results are returned.
-func (i *QueryCursor) FetchMany(n int) ([]*Event, error) {
-	events := make([]*Event, 0, n)
+func (i *QueryCursor) FetchMany(n int) (events []*Event, err error) {
+	events = make([]*Event, 0, n)
 	for len(events) < n {
-		event, err := i.read()
-		if err != nil {
+		var event *Event
+		if event, err = i.read(); err != nil {
 			return nil, err
 		}
+
 		if event == nil {
 			break
 		}
 
 		events = append(events, event)
 	}
+
+	if len(events) == 0 {
+		return nil, ErrNoRows
+	}
+
 	return events, nil
 }
 
 // FetchAll returns all events from the query stream. If there are no more events then
 // an empty slice is returned.
-func (i *QueryCursor) FetchAll() ([]*Event, error) {
-	events := make([]*Event, 0)
+func (i *QueryCursor) FetchAll() (events []*Event, err error) {
+	events = make([]*Event, 0)
 	for {
-		event, err := i.read()
-		if err != nil {
+		var event *Event
+		if event, err = i.read(); err != nil {
 			return nil, err
 		}
+
 		if event == nil {
 			break
 		}
-
 		events = append(events, event)
 	}
+
+	if len(events) == 0 {
+		return nil, ErrNoRows
+	}
+
 	return events, nil
 }
 
@@ -149,4 +165,18 @@ func (c *Client) Explain(ctx context.Context, query *api.Query) (plan *api.Query
 	}
 
 	return c.api.Explain(ctx, query, c.copts...)
+}
+
+func streamClosed(err error) bool {
+	if err == io.EOF {
+		return true
+	}
+
+	if serr, ok := status.FromError(err); ok {
+		if serr.Code() == codes.Canceled {
+			return true
+		}
+	}
+
+	return false
 }

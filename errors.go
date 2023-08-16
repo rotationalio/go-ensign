@@ -24,6 +24,7 @@ var (
 	ErrCursorClosed        = errors.New("cursor is closed")
 	ErrTopicInfoNotFound   = errors.New("no info found for specified topic")
 	ErrAmbiguousTopicInfo  = errors.New("could not identify info for topic")
+	ErrNoRows              = errors.New("ensql: no rows in result set")
 )
 
 // A Nack from the server on a publish stream indicates that the event was not
