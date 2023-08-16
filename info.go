@@ -35,3 +35,23 @@ func (c *Client) Info(ctx context.Context, topicIDs ...string) (info *api.Projec
 	}
 	return info, nil
 }
+
+func (c *Client) TopicInfo(ctx context.Context, topicID ulid.ULID) (info *api.TopicInfo, err error) {
+	req := &api.InfoRequest{
+		Topics: [][]byte{topicID[:]},
+	}
+
+	var project *api.ProjectInfo
+	if project, err = c.api.Info(ctx, req, c.copts...); err != nil {
+		return nil, err
+	}
+
+	switch len(project.Topics) {
+	case 0:
+		return nil, ErrTopicInfoNotFound
+	case 1:
+		return project.Topics[0], nil
+	default:
+		return nil, ErrAmbiguousTopicInfo
+	}
+}

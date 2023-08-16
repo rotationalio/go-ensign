@@ -211,3 +211,69 @@ func (s *sdkTestSuite) TestInfo() {
 	require.EqualError(err, `could not parse "notaulid" as a topic id`)
 	require.Equal(5, s.mock.Calls[mock.InfoRPC], "an unexpected RPC call was made to Ensign")
 }
+
+func (s *sdkTestSuite) TestTopicInfo() {
+	require := s.Require()
+	ctx := context.Background()
+
+	// Authenticate the client for info tests
+	err := s.Authenticate(ctx)
+	require.NoError(err, "must be able to authenticate")
+
+	topicID := ulid.MustParse("01H7ZJXSFFW5MC617WVBDNM7QM")
+
+	// If the mock returns an error; then test info should return the error.
+	s.mock.UseError(mock.InfoRPC, codes.FailedPrecondition, "could not process request")
+	info, err := s.client.TopicInfo(ctx, topicID)
+	s.GRPCErrorIs(err, codes.FailedPrecondition, "could not process request")
+	require.Nil(info, "expected no info response returned")
+
+	// Create a test handler for the ensign server
+	s.mock.OnInfo = func(ctx context.Context, in *api.InfoRequest) (out *api.ProjectInfo, err error) {
+		if len(in.Topics) == 0 {
+			return nil, status.Error(codes.NotFound, "no topic info found")
+		}
+
+		if len(in.Topics) != 1 {
+			return nil, status.Error(codes.FailedPrecondition, "too many topics in request")
+		}
+
+		projectID := ulid.MustParse("01GZ1AQVTNF32YJWX6VP3Q7H4P").Bytes()
+		topicID := ulid.ULID{}
+		if err = topicID.UnmarshalBinary(in.Topics[0]); err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+
+		out = &api.ProjectInfo{ProjectId: projectID}
+		if topicID.String() == "01H7ZJXSFFW5MC617WVBDNM7QM" {
+			out.Topics = []*api.TopicInfo{
+				{
+					TopicId:       topicID[:],
+					ProjectId:     projectID,
+					Events:        119,
+					Duplicates:    10,
+					DataSizeBytes: 1024,
+					Types: []*api.EventTypeInfo{
+						{
+							Type: &api.Type{
+								Name:         "Document",
+								MajorVersion: 1,
+							},
+							Mimetype:      mimetype.ApplicationJSON,
+							Events:        119,
+							Duplicates:    10,
+							DataSizeBytes: 1024,
+						},
+					},
+				},
+			}
+		}
+		return out, nil
+	}
+
+	info, err = s.client.TopicInfo(ctx, topicID)
+	require.NoError(err, "could not fetch topic info")
+	require.Equal(uint64(119), info.Events)
+	require.Equal(uint64(10), info.Duplicates)
+	require.Equal(uint64(1024), info.DataSizeBytes)
+}

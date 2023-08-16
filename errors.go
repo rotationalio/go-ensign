@@ -22,6 +22,8 @@ var (
 	ErrNoTopicID           = errors.New("topic id is not available on event")
 	ErrEmptyQuery          = errors.New("query cannot be empty")
 	ErrCursorClosed        = errors.New("cursor is closed")
+	ErrTopicInfoNotFound   = errors.New("no info found for specified topic")
+	ErrAmbiguousTopicInfo  = errors.New("could not identify info for topic")
 )
 
 // A Nack from the server on a publish stream indicates that the event was not

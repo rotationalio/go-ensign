@@ -115,6 +115,7 @@ func (i *QueryCursor) Close() (err error) {
 	}
 
 	if err = i.stream.CloseSend(); err != nil {
+		i.stream = nil
 		return err
 	}
 
