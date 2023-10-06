@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 
 	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
@@ -82,6 +83,46 @@ func (c *Client) ArchiveTopic(ctx context.Context, topicID string) (err error) {
 // NOTE: this client method is not implemented yet.
 func (c *Client) DestroyTopic(ctx context.Context, topicID string) (err error) {
 	return errors.New("not implemented yet")
+}
+
+// Set the topic deduplication policy on the server.
+func (c *Client) SetTopicDeduplicationPolicy(ctx context.Context, topicID string, policy api.Deduplication_Strategy, offset api.Deduplication_OffsetPosition, keysOrFields []string) (err error) {
+	out := &api.TopicPolicy{
+		Id: topicID,
+		DeduplicationPolicy: &api.Deduplication{
+			Strategy: policy,
+			Offset:   offset,
+		},
+	}
+
+	switch policy {
+	case api.Deduplication_KEY_GROUPED, api.Deduplication_UNIQUE_KEY:
+		out.DeduplicationPolicy.Keys = keysOrFields
+	case api.Deduplication_UNIQUE_FIELD:
+		out.DeduplicationPolicy.Fields = keysOrFields
+	default:
+		if len(keysOrFields) > 0 {
+			return fmt.Errorf("%s policy does not support keys or fields", policy)
+		}
+	}
+
+	if _, err := c.api.SetTopicPolicy(ctx, out, c.copts...); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Set the topic sharding strategy on the server.
+func (c *Client) SetTopicShardingStrategy(ctx context.Context, topicID string, strategy api.ShardingStrategy) (err error) {
+	out := &api.TopicPolicy{
+		Id:               topicID,
+		ShardingStrategy: strategy,
+	}
+
+	if _, err := c.api.SetTopicPolicy(ctx, out, c.copts...); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Find a topic ID from a topic name.
