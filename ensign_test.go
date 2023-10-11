@@ -75,7 +75,7 @@ func (s *sdkTestSuite) GRPCErrorIs(err error, code codes.Code, msg string) {
 	require.Error(err, "expected an error but none was returned")
 
 	serr, ok := status.FromError(err)
-	require.True(ok, "err is not a grpc status error")
+	require.True(ok, "err is not a grpc status error: %s", err)
 	require.Equal(code, serr.Code(), "status code %s did not match expected %s", serr.Code(), code)
 	if msg != "" {
 		require.Equal(msg, serr.Message(), "status message did not match the expected message")

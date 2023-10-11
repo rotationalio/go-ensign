@@ -3,7 +3,7 @@ package ensign
 import (
 	"context"
 	"encoding/base64"
-	"errors"
+	"fmt"
 
 	"github.com/oklog/ulid/v2"
 	api "github.com/rotationalio/go-ensign/api/v1beta1"
@@ -73,15 +73,75 @@ func (c *Client) ListTopics(ctx context.Context) (topics []*api.Topic, err error
 }
 
 // Archive a topic marking it as read-only.
-// NOTE: this client method is not implemented yet.
-func (c *Client) ArchiveTopic(ctx context.Context, topicID string) (err error) {
-	return errors.New("not implemented yet")
+func (c *Client) ArchiveTopic(ctx context.Context, topicID string) (_ api.TopicState, err error) {
+	req := &api.TopicMod{
+		Id:        topicID,
+		Operation: api.TopicMod_ARCHIVE,
+	}
+
+	var state *api.TopicStatus
+	if state, err = c.api.DeleteTopic(ctx, req, c.copts...); err != nil {
+		return api.TopicState_UNDEFINED, err
+	}
+
+	return state.State, nil
 }
 
 // Destroy a topic removing it and all of its data.
-// NOTE: this client method is not implemented yet.
-func (c *Client) DestroyTopic(ctx context.Context, topicID string) (err error) {
-	return errors.New("not implemented yet")
+func (c *Client) DestroyTopic(ctx context.Context, topicID string) (_ api.TopicState, err error) {
+	req := &api.TopicMod{
+		Id:        topicID,
+		Operation: api.TopicMod_DESTROY,
+	}
+
+	var state *api.TopicStatus
+	if state, err = c.api.DeleteTopic(ctx, req, c.copts...); err != nil {
+		return api.TopicState_UNDEFINED, err
+	}
+
+	return state.State, nil
+}
+
+// Set the topic deduplication policy on the server.
+func (c *Client) SetTopicDeduplicationPolicy(ctx context.Context, topicID string, policy api.Deduplication_Strategy, offset api.Deduplication_OffsetPosition, keysOrFields []string) (_ api.TopicState, err error) {
+	out := &api.TopicPolicy{
+		Id: topicID,
+		DeduplicationPolicy: &api.Deduplication{
+			Strategy: policy,
+			Offset:   offset,
+		},
+	}
+
+	switch policy {
+	case api.Deduplication_KEY_GROUPED, api.Deduplication_UNIQUE_KEY:
+		out.DeduplicationPolicy.Keys = keysOrFields
+	case api.Deduplication_UNIQUE_FIELD:
+		out.DeduplicationPolicy.Fields = keysOrFields
+	default:
+		if len(keysOrFields) > 0 {
+			return api.TopicState_UNDEFINED, fmt.Errorf("%s policy does not support keys or fields", policy)
+		}
+	}
+
+	var rep *api.TopicStatus
+	if rep, err = c.api.SetTopicPolicy(ctx, out, c.copts...); err != nil {
+		return api.TopicState_UNDEFINED, err
+	}
+	return rep.State, nil
+}
+
+// Set the topic sharding strategy on the server.
+func (c *Client) SetTopicShardingStrategy(ctx context.Context, topicID string, strategy api.ShardingStrategy) (_ api.TopicState, err error) {
+	out := &api.TopicPolicy{
+		Id:               topicID,
+		ShardingStrategy: strategy,
+	}
+
+	var rep *api.TopicStatus
+	if rep, err = c.api.SetTopicPolicy(ctx, out, c.copts...); err != nil {
+		return api.TopicState_UNDEFINED, err
+	}
+	return rep.State, nil
 }
 
 // Find a topic ID from a topic name.
