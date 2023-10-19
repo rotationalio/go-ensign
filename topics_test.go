@@ -26,7 +26,7 @@ func (s *sdkTestSuite) TestSetTopicDeduplicationPolicy() {
 		}
 
 		for _, policy := range policies {
-			_, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, policy, api.Deduplication_OFFSET_EARLIEST, names)
+			_, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, policy, api.Deduplication_OFFSET_EARLIEST, names, false)
 			require.Error(err, "expected keys unsupported error for %s policy", policy.String())
 		}
 	})
@@ -34,7 +34,7 @@ func (s *sdkTestSuite) TestSetTopicDeduplicationPolicy() {
 	s.Run("APIError", func() {
 		defer s.mock.Reset()
 		s.mock.UseError(mock.SetTopicPolicyRPC, codes.FailedPrecondition, "mock error")
-		_, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, api.Deduplication_DATAGRAM, api.Deduplication_OFFSET_EARLIEST, nil)
+		_, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, api.Deduplication_DATAGRAM, api.Deduplication_OFFSET_EARLIEST, nil, false)
 		s.GRPCErrorIs(err, codes.FailedPrecondition, "mock error")
 	})
 
@@ -65,7 +65,7 @@ func (s *sdkTestSuite) TestSetTopicDeduplicationPolicy() {
 			return &api.TopicStatus{Id: topicID, State: api.TopicState_PENDING}, nil
 		}
 
-		state, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, api.Deduplication_DATAGRAM, api.Deduplication_OFFSET_LATEST, nil)
+		state, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, api.Deduplication_DATAGRAM, api.Deduplication_OFFSET_LATEST, nil, false)
 		require.NoError(err, "expected no error to set datagram with no keys or fields")
 		require.Equal(api.TopicState_PENDING, state)
 		require.Equal(1, s.mock.Calls[mock.SetTopicPolicyRPC])
@@ -98,7 +98,7 @@ func (s *sdkTestSuite) TestSetTopicDeduplicationPolicy() {
 			return &api.TopicStatus{Id: topicID, State: api.TopicState_PENDING}, nil
 		}
 
-		state, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, api.Deduplication_KEY_GROUPED, api.Deduplication_OFFSET_LATEST, names)
+		state, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, api.Deduplication_KEY_GROUPED, api.Deduplication_OFFSET_LATEST, names, false)
 		require.NoError(err, "expected no error to set datagram with no keys or fields")
 		require.Equal(api.TopicState_PENDING, state)
 		require.Equal(1, s.mock.Calls[mock.SetTopicPolicyRPC])
@@ -131,7 +131,7 @@ func (s *sdkTestSuite) TestSetTopicDeduplicationPolicy() {
 			return &api.TopicStatus{Id: topicID, State: api.TopicState_PENDING}, nil
 		}
 
-		state, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, api.Deduplication_UNIQUE_FIELD, api.Deduplication_OFFSET_LATEST, names)
+		state, err := s.client.SetTopicDeduplicationPolicy(ctx, topicID, api.Deduplication_UNIQUE_FIELD, api.Deduplication_OFFSET_LATEST, names, false)
 		require.NoError(err, "expected no error to set unique fields with 3 fields")
 		require.Equal(api.TopicState_PENDING, state)
 		require.Equal(1, s.mock.Calls[mock.SetTopicPolicyRPC])
