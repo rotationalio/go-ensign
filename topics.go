@@ -103,12 +103,13 @@ func (c *Client) DestroyTopic(ctx context.Context, topicID string) (_ api.TopicS
 }
 
 // Set the topic deduplication policy on the server.
-func (c *Client) SetTopicDeduplicationPolicy(ctx context.Context, topicID string, policy api.Deduplication_Strategy, offset api.Deduplication_OffsetPosition, keysOrFields []string) (_ api.TopicState, err error) {
+func (c *Client) SetTopicDeduplicationPolicy(ctx context.Context, topicID string, policy api.Deduplication_Strategy, offset api.Deduplication_OffsetPosition, keysOrFields []string, overwriteDuplicate bool) (_ api.TopicState, err error) {
 	out := &api.TopicPolicy{
 		Id: topicID,
 		DeduplicationPolicy: &api.Deduplication{
-			Strategy: policy,
-			Offset:   offset,
+			Strategy:           policy,
+			Offset:             offset,
+			OverwriteDuplicate: overwriteDuplicate,
 		},
 	}
 
